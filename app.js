@@ -223,9 +223,9 @@ const Points = {
   },
   todayTotal() {
     const today = todayStr();
-    return Store.getPoints().history
-      .filter(h => h.date === today && h.amount > 0)
-      .reduce((s, h) => s + h.amount, 0);
+    return Math.max(0, Store.getPoints().history
+      .filter(h => h.date === today)
+      .reduce((s, h) => s + h.amount, 0));
   },
   toDollars(pts) {
     const rate = Store.getSettings().pointsConversionRate || 0.50;
