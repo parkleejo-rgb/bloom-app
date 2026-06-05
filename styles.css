@@ -1107,12 +1107,77 @@ textarea.form-input {
 .pillar-choice-btn.selected { border-color: var(--sage); background: var(--sage-light); color: var(--sage-dark); }
 .pillar-choice-btn .dot { width: 10px; height: 10px; border-radius: 50%; }
 
+/* ─── Habits Customizer ──────────────────────────────────────────────────── */
+.hc-pillar-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 16px 0 6px;
+}
+.hc-pillar-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.hc-name-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: transparent;
+  padding: 2px 0;
+  min-width: 0;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.hc-name-input:focus {
+  border-bottom-color: var(--sage);
+}
+.hc-delete-btn {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.hc-delete-btn:hover { color: #C44E4E; background: #FEF0F0; }
+.hc-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1.5px dashed var(--border-dark);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 12px;
+  cursor: pointer;
+  width: 100%;
+  margin: 4px 0 2px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.hc-add-btn:hover { border-color: var(--sage); color: var(--sage-dark); }
+
 /* ─── Settings Habit List ────────────────────────────────────────────────── */
 .habit-settings-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 16px;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border);
 }
 .habit-settings-item:last-child { border-bottom: none; }

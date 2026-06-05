@@ -1568,40 +1568,150 @@ function openConfirm(title, message, confirmLabel, onConfirm, danger = false) {
 /* ── Habits Customizer ── */
 
 function openHabitsCustomizer() {
-  openModal(body => {
-    const habits = Store.getHabitDefs();
-    const pillars = ['sleep', 'nutrition', 'movement', 'stress'];
+  openModal(renderHabitsCustomizerBody);
+}
 
-    let html = `<div class="modal-title">Customize Habits</div>`;
-    pillars.forEach(p => {
-      const meta = PILLAR_META[p];
-      const items = habits.filter(h => h.pillar === p);
-      html += `<div class="card-title" style="margin-top:8px">${meta.label}</div>`;
-      items.forEach(h => {
-        html += `
-          <div class="habit-settings-item">
-            <label class="toggle" style="flex-shrink:0">
-              <input type="checkbox" class="habit-toggle" data-id="${h.id}" ${h.enabled !== false ? 'checked' : ''}>
-              <div class="toggle-track"></div>
-            </label>
-            <div class="habit-settings-name">${escHtml(h.label)}</div>
-          </div>
-        `;
-      });
+function renderHabitsCustomizerBody(body) {
+  const habits  = Store.getHabitDefs();
+  const pillars = ['sleep', 'nutrition', 'movement', 'stress'];
+
+  let html = `<div class="modal-title">Customize Habits</div>`;
+  pillars.forEach(p => {
+    const meta  = PILLAR_META[p];
+    const items = habits.filter(h => h.pillar === p);
+    html += `
+      <div class="hc-pillar-header">
+        <div class="pillar-dot ${meta.dotClass}" style="width:8px;height:8px;border-radius:50%;flex-shrink:0"></div>
+        <span class="hc-pillar-label">${meta.label}</span>
+      </div>
+    `;
+    items.forEach(h => {
+      const isCustom = !!h.custom;
+      html += `
+        <div class="habit-settings-item">
+          <label class="toggle" style="flex-shrink:0">
+            <input type="checkbox" class="habit-toggle" data-id="${h.id}" ${h.enabled !== false ? 'checked' : ''}>
+            <div class="toggle-track"></div>
+          </label>
+          <input
+            type="text"
+            class="hc-name-input"
+            data-id="${h.id}"
+            value="${escHtml(h.label)}"
+            maxlength="60"
+            aria-label="Habit name"
+          >
+          ${isCustom
+            ? `<button class="hc-delete-btn" data-id="${h.id}" title="Delete habit" aria-label="Delete">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+               </button>`
+            : `<div style="width:22px;flex-shrink:0"></div>`}
+        </div>
+      `;
     });
+    html += `
+      <button class="hc-add-btn" data-pillar="${p}" data-pts="1">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add to ${meta.label}
+      </button>
+    `;
+  });
 
-    html += `<div style="height:16px"></div>`;
-    body.innerHTML = html;
+  html += `<div style="height:16px"></div>`;
+  body.innerHTML = html;
 
-    body.querySelectorAll('.habit-toggle').forEach(toggle => {
-      toggle.addEventListener('change', () => {
-        const habits = Store.getHabitDefs();
-        const h = habits.find(x => x.id === toggle.dataset.id);
-        if (h) {
-          h.enabled = toggle.checked;
+  // Toggle on/off
+  body.querySelectorAll('.habit-toggle').forEach(toggle => {
+    toggle.addEventListener('change', () => {
+      const habits = Store.getHabitDefs();
+      const h = habits.find(x => x.id === toggle.dataset.id);
+      if (h) { h.enabled = toggle.checked; Store.saveHabitDefs(habits); }
+      if (currentScreen === 'today') renderToday();
+    });
+  });
+
+  // Rename on blur
+  body.querySelectorAll('.hc-name-input').forEach(input => {
+    input.addEventListener('blur', () => {
+      const val = input.value.trim();
+      if (!val) { input.value = input.defaultValue; return; }
+      const habits = Store.getHabitDefs();
+      const h = habits.find(x => x.id === input.dataset.id);
+      if (h && h.label !== val) {
+        h.label = val;
+        Store.saveHabitDefs(habits);
+        if (currentScreen === 'today') renderToday();
+      }
+    });
+  });
+
+  // Delete custom habit
+  body.querySelectorAll('.hc-delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      openConfirm('Delete habit?', 'This habit will be removed from your checklist.', 'Delete', () => {
+        const habits = Store.getHabitDefs().filter(h => h.id !== id);
+        Store.saveHabitDefs(habits);
+        if (currentScreen === 'today') renderToday();
+        openModal(renderHabitsCustomizerBody);
+      }, true);
+    });
+  });
+
+  // Add new habit
+  body.querySelectorAll('.hc-add-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pillar = btn.dataset.pillar;
+      openModal(b => {
+        b.innerHTML = `
+          <div class="modal-title">Add Habit</div>
+          <div class="form-group">
+            <label class="form-label">Habit name</label>
+            <input class="form-input" id="new-habit-label" type="text" placeholder="e.g. Took vitamins" maxlength="60" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Pillar</label>
+            <select class="form-input form-select" id="new-habit-pillar">
+              ${['sleep','nutrition','movement','stress'].map(p =>
+                `<option value="${p}" ${p === pillar ? 'selected' : ''}>${PILLAR_META[p].label}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Points</label>
+            <select class="form-input form-select" id="new-habit-pts">
+              <option value="1">1 point</option>
+              <option value="2">2 points</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-full" id="new-habit-save">Add Habit</button>
+          <button class="btn btn-outline btn-full mt-8" id="new-habit-back">Back</button>
+        `;
+        b.querySelector('#new-habit-label').focus();
+        b.querySelector('#new-habit-back').addEventListener('click', () => openModal(renderHabitsCustomizerBody));
+        b.querySelector('#new-habit-save').addEventListener('click', () => {
+          const label  = b.querySelector('#new-habit-label').value.trim();
+          const pillar = b.querySelector('#new-habit-pillar').value;
+          const pts    = parseInt(b.querySelector('#new-habit-pts').value);
+          if (!label) { showToast('Please enter a habit name'); return; }
+          const habits = Store.getHabitDefs();
+          habits.push({
+            id:          'custom_' + Date.now(),
+            label,
+            pillar,
+            weight:      pts,
+            points:      pts,
+            enabled:     true,
+            custom:      true,
+            retroactive: false,
+            opensWorkout: false,
+            priority:    false,
+          });
           Store.saveHabitDefs(habits);
           if (currentScreen === 'today') renderToday();
-        }
+          openModal(renderHabitsCustomizerBody);
+          showToast('Habit added', 'success');
+        });
       });
     });
   });
