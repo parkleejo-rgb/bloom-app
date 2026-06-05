@@ -1,12 +1,16 @@
 /* Bloom Service Worker — cache-first for offline PWA support */
 
-const CACHE = 'bloom-v1';
+const CACHE = 'bloom-v2';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './manifest.json',
+  './favicon.ico',
+  './apple-touch-icon.png',
+  './android-chrome-192x192.png',
+  './android-chrome-512x512.png',
 ];
 
 self.addEventListener('install', e => {
