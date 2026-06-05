@@ -1,6 +1,6 @@
 /* Bloom Service Worker — cache-first for offline PWA support */
 
-const CACHE = 'bloom-v2';
+const CACHE = 'bloom-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -30,20 +30,33 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Cache-first for same-origin, network-first for CDN resources
   const url = new URL(e.request.url);
+
+  // CDN resources: network-first, fall back to cache
   if (url.origin !== self.location.origin) {
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    return;
+  }
+
+  // HTML: network-first so updates are picked up immediately, fall back to cache offline
+  if (e.request.destination === 'document' || url.pathname.endsWith('.html')) {
     e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
+      fetch(e.request).then(resp => {
+        const clone = resp.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+        return resp;
+      }).catch(() => caches.match(e.request))
     );
     return;
   }
+
+  // Everything else (JS, CSS, images): cache-first for speed
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
       return fetch(e.request).then(resp => {
         const clone = resp.clone();
-        caches.open(CACHE).then(cache => cache.put(e.request, clone));
+        caches.open(CACHE).then(c => c.put(e.request, clone));
         return resp;
       });
     })
