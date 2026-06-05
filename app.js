@@ -1003,10 +1003,7 @@ function renderSettings() {
   const s = Store.getSettings();
 
   const html = `
-    <div class="screen-header settings-header">
-      <img src="apple-touch-icon.png" alt="" class="settings-logo" style="width:36px;height:36px;border-radius:9px;flex-shrink:0">
-      <h2>Settings</h2>
-    </div>
+    <div class="screen-header"><h2>Settings</h2></div>
 
     <div class="settings-section">
       <div class="settings-section-title">About You</div>
