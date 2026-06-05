@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "bloom",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/tmp/bloom-serve.py"],
+      "port": 4242
+    }
+  ]
+}

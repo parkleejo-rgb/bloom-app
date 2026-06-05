@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /Users/JoPark/Desktop/Bloom-app/.claude)",
+      "mcp__Claude_Preview__preview_start",
+      "Read(//usr/local/bin/**)",
+      "Read(//Users/JoPark/.nvm/versions/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//Users/JoPark/**)",
+      "Bash(curl -v http://127.0.0.1:3737/index.html)"
+    ]
+  }
+}
