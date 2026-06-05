@@ -912,6 +912,42 @@ textarea.form-input {
 }
 .dot-cell.empty { background: var(--surface-2); border: 1px solid var(--border); }
 
+/* ─── Habit Rationale Card ───────────────────────────────────────────────── */
+#rationale-card {
+  position: fixed;
+  bottom: calc(var(--nav-height) + var(--safe-bottom) + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 440px;
+  background: var(--text);
+  color: white;
+  border-radius: var(--radius);
+  padding: 14px 16px 16px;
+  z-index: 180;
+  box-shadow: 0 6px 28px rgba(58,53,48,0.25);
+  animation: rationale-in 0.2s ease;
+  pointer-events: auto;
+}
+#rationale-card.hidden { display: none; }
+#rationale-name {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  opacity: 0.6;
+  margin-bottom: 7px;
+}
+#rationale-text {
+  font-size: 13px;
+  line-height: 1.55;
+  opacity: 0.92;
+}
+@keyframes rationale-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 /* ─── Toast Notifications ────────────────────────────────────────────────── */
 #toast-container {
   position: fixed;

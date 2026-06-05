@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
   <div id="app">
@@ -95,6 +95,12 @@
       </div>
     </div>
 
+    <!-- Habit Rationale Tooltip -->
+    <div id="rationale-card" class="hidden" role="tooltip">
+      <div id="rationale-name"></div>
+      <div id="rationale-text"></div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" aria-live="polite"></div>
 
@@ -103,6 +109,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>

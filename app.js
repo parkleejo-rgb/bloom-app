@@ -21,31 +21,54 @@ const MOTIVATIONAL_MESSAGES = [
 ];
 
 const DEFAULT_HABITS = [
-  // Sleep
-  { id: 'sleep_bed',      label: 'In bed by 10:30pm',                     pillar: 'sleep',     weight: 3, points: 2, retroactive: true,  opensWorkout: false, priority: false },
-  { id: 'sleep_wake',     label: 'Woke up within 30 min of usual wake time', pillar: 'sleep',   weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'sleep_caffeine', label: 'No caffeine after 1pm',                  pillar: 'sleep',     weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'sleep_outside',  label: 'Got outside in the morning (before noon)', pillar: 'sleep',   weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false, alsoContributes: 'stress', alsoWeight: 1 },
-  // Nutrition
-  { id: 'nutr_breakfast', label: 'High protein breakfast (30g goal)',      pillar: 'nutrition', weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_lunch',     label: 'Protein and veg forward lunch',          pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_dinner',    label: 'Protein and veg forward dinner',         pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_no_eat',    label: 'No eating after 7pm',                    pillar: 'nutrition', weight: 3, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_water',     label: 'Drank water first thing this morning',   pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_omega3',    label: 'Took omega-3 supplement',                pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_fiber',     label: 'Approx 30g of fiber throughout day',      pillar: 'nutrition', weight: 2, points: 2, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_no_junk',   label: 'No processed meats or packaged snack foods', pillar: 'nutrition', weight: 3, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_alcohol',   label: 'Alcohol-free today',                     pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  // Sleep  (sleep_outside removed — morning walk now covers circadian benefit in Movement)
+  { id: 'sleep_bed',      label: 'In bed by 10:30pm',                          pillar: 'sleep',     weight: 3, points: 2, retroactive: true,  opensWorkout: false, priority: false },
+  { id: 'sleep_wake',     label: 'Woke up within 30 min of usual wake time',   pillar: 'sleep',     weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'sleep_caffeine', label: 'No caffeine after 1pm',                      pillar: 'sleep',     weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  // Nutrition — ordered by points desc
+  { id: 'nutr_breakfast', label: 'High protein breakfast (30g goal)',          pillar: 'nutrition', weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_fiber',     label: 'Approx 30g of fiber throughout day',         pillar: 'nutrition', weight: 2, points: 2, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_no_eat',    label: 'No eating after 7pm',                        pillar: 'nutrition', weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_no_junk',   label: 'No processed meat or packaged snack foods today', pillar: 'nutrition', weight: 3, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_alcohol',   label: 'Alcohol-free today',                         pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_lunch',     label: 'Protein and veg forward lunch',              pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_dinner',    label: 'Protein and veg forward dinner',             pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_water',     label: 'Drank water first thing this morning',       pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_omega3',    label: 'Took omega-3 supplement',                    pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_vitamins',  label: 'Took prenatal vitamins, mag, vit D',         pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
   // Movement
-  { id: 'move_strength',  label: 'Completed a strength training session',  pillar: 'movement',  weight: 4, points: 2, retroactive: false, opensWorkout: true,  priority: true  },
-  { id: 'move_other',     label: 'Completed another workout',              pillar: 'movement',  weight: 2, points: 1, retroactive: false, opensWorkout: true,  priority: false },
-  { id: 'move_walk',      label: 'Morning dog walk',                       pillar: 'movement',  weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, alsoContributes: 'stress', alsoWeight: 1 },
-  { id: 'move_mobility',  label: 'Did mobility work or stretching',        pillar: 'movement',  weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, alsoContributes: 'stress', alsoWeight: 1 },
+  { id: 'move_strength',  label: 'Completed a strength training session',      pillar: 'movement',  weight: 4, points: 2, retroactive: false, opensWorkout: true,  priority: true  },
+  { id: 'move_other',     label: 'Completed another workout',                  pillar: 'movement',  weight: 2, points: 1, retroactive: false, opensWorkout: true,  priority: false },
+  { id: 'move_walk',      label: 'Morning dog walk',                           pillar: 'movement',  weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, alsoContributes: 'sleep', alsoWeight: 1 },
+  { id: 'move_mobility',  label: 'Did mobility work or stretching',            pillar: 'movement',  weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, alsoContributes: 'stress', alsoWeight: 1 },
   // Stress & Recovery
-  { id: 'stress_outside', label: 'Got outside today (non-workout time)',   pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'stress_me',      label: 'Did one thing just for me',              pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'stress_task',    label: 'Made progress on one non-baby task',     pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'stress_outside', label: 'Got outside today (non-workout time)',       pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'stress_me',      label: 'Did one thing just for me',                  pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'stress_task',    label: 'Made progress on one non-baby task',         pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
 ];
+
+const HABIT_RATIONALE = {
+  sleep_bed:     "Late nights elevate cortisol and disrupt the hormones that regulate hunger — getting to bed earlier is one of the highest-leverage changes for postpartum weight loss.",
+  sleep_wake:    "Consistent wake time is one of the strongest anchors for circadian rhythm stability — it helps your body predict sleep pressure more reliably than bedtime alone.",
+  sleep_caffeine:"Caffeine has a 5–6 hour half-life, meaning an afternoon coffee is still active in your system at bedtime and fragments sleep architecture even if you fall asleep easily.",
+  nutr_breakfast:"A high-protein breakfast reduces hunger hormones for the rest of the day more effectively than the same protein eaten at dinner — front-loading protein is one of the most evidence-backed strategies for appetite control.",
+  nutr_fiber:    "Fiber feeds the gut bacteria that regulate hunger hormones, slows glucose absorption, and reduces overall appetite — most people eat roughly half the recommended daily amount.",
+  nutr_no_eat:   "Late eating is associated with increased fat storage in several studies, likely through circadian disruption of metabolic processes — a consistent eating cutoff also reinforces your natural fasting window.",
+  nutr_no_junk:  "Processed meats are classified as a Group 1 carcinogen by the WHO, and packaged snack foods contain emulsifiers linked to gut microbiome disruption and inflammation — large cohort studies link high UPF consumption to increased cancer risk.",
+  nutr_alcohol:  "Even small amounts of alcohol disrupt sleep architecture, elevate cortisol, and are directly linked to increased breast cancer risk — alcohol-free days have compounding benefits across multiple health outcomes.",
+  nutr_lunch:    "Meals built around protein and fiber slow glucose absorption, extend satiety, and reduce the likelihood of reactive eating later in the afternoon.",
+  nutr_dinner:   "Ending the day with a protein and vegetable-centred meal supports muscle maintenance overnight and keeps blood sugar stable through your fasting window.",
+  nutr_water:    "After hours of sleep without fluids, starting the day with water supports energy, digestion, and helps establish a consistent morning routine.",
+  nutr_omega3:   "Pregnancy and breastfeeding deplete DHA significantly — low omega-3 is linked to postpartum mood issues and systemic inflammation, both of which affect weight loss and recovery.",
+  nutr_vitamins: "Postpartum nutritional depletion is real — magnesium supports sleep and stress regulation, vitamin D deficiency is particularly common postpartum and affects mood and immune function, and prenatal vitamins cover the gaps that breastfeeding creates.",
+  move_strength: "Resistance training preserves lean muscle mass during weight loss, protecting your metabolic rate — postpartum, this matters more than cardio for long-term body composition.",
+  move_other:    "Any movement beyond strength training improves cardiovascular health, mood, and stress regulation — consistency across modalities matters more than intensity.",
+  move_walk:     "A morning walk combines circadian light exposure, gentle movement, and cortisol regulation — morning light specifically anchors your circadian rhythm and improves sleep quality that night, while the movement supports stress recovery.",
+  move_mobility: "Postpartum connective tissue is more vulnerable to injury — consistent mobility work protects your ability to keep exercising, which is the actual goal.",
+  stress_outside:"Even 10 minutes in a natural environment reduces cortisol measurably, independent of exercise — chronic postpartum stress actively impairs fat loss, particularly around the abdomen.",
+  stress_me:     "Postpartum identity preservation — maintaining activities that belong to you, not your role as a mother — is consistently linked to better mental health outcomes and lower chronic stress.",
+  stress_task:   "A sense of agency and accomplishment outside caregiving reduces the psychological load of postpartum life and supports the self-efficacy that sustains healthy habits long-term.",
+};
 
 const PILLAR_META = {
   sleep:     { label: 'Sleep',           colorClass: 'blue', dotClass: 'sleep'     },
@@ -144,32 +167,62 @@ const Store = {
     const stored = this.get('habit_defs', null);
     if (!stored) return DEFAULT_HABITS.map(h => ({...h}));
 
-    // Migrations applied to stored default habits (never overwrites user customizations on custom habits)
     const LABEL_MIGRATIONS = [
-      { id: 'nutr_breakfast', oldLabel: 'High protein breakfast (30g goal)',  newPoints: 2 },
-      { id: 'nutr_fiber',     oldLabel: 'Had a high-fiber food today',        newLabel: 'Approx 30g of fiber throughout day', newPoints: 2 },
-      { id: 'nutr_no_junk',   oldLabel: 'Avoided ultra-processed snacks',     newLabel: 'No processed meats or packaged snack foods' },
+      { id: 'nutr_breakfast', newPoints: 2 },
+      { id: 'nutr_fiber',     oldLabels: ['Had a high-fiber food today'],                                         newLabel: 'Approx 30g of fiber throughout day', newPoints: 2 },
+      { id: 'nutr_no_eat',    newPoints: 2 },
+      { id: 'nutr_no_junk',   oldLabels: ['Avoided ultra-processed snacks','No processed meats or packaged snack foods'], newLabel: 'No processed meat or packaged snack foods today' },
+      // move_walk: alsoContributes changed from stress → sleep
+      { id: 'move_walk',      newAlso: 'sleep', newAlsoWeight: 1 },
     ];
 
-    return stored.map(h => {
-      if (h.custom) return h; // never touch user-created habits
-      const def = DEFAULT_HABITS.find(d => d.id === h.id);
-      let updated = { ...h };
+    // Remove retired habits (sleep_outside merged into move_walk)
+    const RETIRED = ['sleep_outside'];
 
-      // Migrate alsoContributes from defaults
-      if (def && def.alsoContributes && !h.alsoContributes) {
-        updated = { ...updated, alsoContributes: def.alsoContributes, alsoWeight: def.alsoWeight };
-      }
+    // Collect custom habits to preserve at end of their pillar
+    let migrated = stored
+      .filter(h => !RETIRED.includes(h.id))
+      .map(h => {
+        if (h.custom) return h;
+        const def = DEFAULT_HABITS.find(d => d.id === h.id);
+        let u = { ...h };
 
-      // Migrate label and points for specific habits
-      const m = LABEL_MIGRATIONS.find(x => x.id === h.id);
-      if (m) {
-        if (m.newLabel && h.label === m.oldLabel) updated = { ...updated, label: m.newLabel };
-        if (m.newPoints !== undefined)             updated = { ...updated, points: m.newPoints, weight: m.newPoints };
-      }
+        // Sync alsoContributes from defaults
+        if (def) {
+          if (def.alsoContributes) {
+            u = { ...u, alsoContributes: def.alsoContributes, alsoWeight: def.alsoWeight };
+          } else if (u.alsoContributes) {
+            // default no longer has it — remove
+            delete u.alsoContributes; delete u.alsoWeight;
+          }
+        }
 
-      return updated;
+        const m = LABEL_MIGRATIONS.find(x => x.id === h.id);
+        if (m) {
+          if (m.newLabel && (!m.oldLabels || m.oldLabels.includes(h.label))) u = { ...u, label: m.newLabel };
+          if (m.newPoints !== undefined) u = { ...u, points: m.newPoints, weight: m.newPoints };
+          if (m.newAlso)  { u.alsoContributes = m.newAlso; u.alsoWeight = m.newAlsoWeight; }
+        }
+        return u;
+      });
+
+    // Add any new default habits not yet in stored data
+    DEFAULT_HABITS.forEach(def => {
+      if (!migrated.find(h => h.id === def.id)) migrated.push({ ...def });
     });
+
+    // Sort to match DEFAULT_HABITS order; custom habits trail their pillar
+    const defaultOrder = DEFAULT_HABITS.map(h => h.id);
+    migrated.sort((a, b) => {
+      const ai = defaultOrder.indexOf(a.id);
+      const bi = defaultOrder.indexOf(b.id);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+
+    return migrated;
   },
   saveHabitDefs(h)     { this.set('habit_defs', h); },
 
@@ -333,6 +386,8 @@ const Badges = {
 
 let currentScreen = 'today';
 let weightChart = null;
+let rationaleVisible = false;
+let rationaleTimer = null;
 
 function navigate(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -378,6 +433,27 @@ function updatePointsBadge() {
   if (!el) return;
   const pts = Points.todayTotal();
   el.textContent = pts > 0 ? `${pts} pts today` : '';
+}
+
+/* ─── Habit Rationale Tooltip ────────────────────────────────────────────── */
+
+function showRationale(habitId, label) {
+  const text = HABIT_RATIONALE[habitId];
+  if (!text) return;
+  const card  = document.getElementById('rationale-card');
+  if (!card) return;
+  card.querySelector('#rationale-name').textContent = label;
+  card.querySelector('#rationale-text').textContent = text;
+  card.classList.remove('hidden');
+  rationaleVisible = true;
+  clearTimeout(rationaleTimer);
+  rationaleTimer = setTimeout(hideRationale, 7000);
+}
+
+function hideRationale() {
+  document.getElementById('rationale-card')?.classList.add('hidden');
+  rationaleVisible = false;
+  clearTimeout(rationaleTimer);
 }
 
 /* ─── TODAY Screen ───────────────────────────────────────────────────────── */
@@ -426,9 +502,34 @@ function renderToday() {
 
   screen.innerHTML = html;
 
-  // Attach habit click events
+  // Attach habit click + long-press events
   screen.querySelectorAll('.habit-item').forEach(item => {
-    item.addEventListener('click', () => toggleHabit(item));
+    let pressTimer = null;
+    let wasLongPress = false;
+
+    const startPress = () => {
+      wasLongPress = false;
+      pressTimer = setTimeout(() => {
+        wasLongPress = true;
+        const habits = Store.getHabitDefs();
+        const h = habits.find(x => x.id === item.dataset.habit);
+        showRationale(item.dataset.habit, h?.label || '');
+      }, 500);
+    };
+    const cancelPress = () => clearTimeout(pressTimer);
+
+    item.addEventListener('touchstart',  startPress,  { passive: true });
+    item.addEventListener('touchend',    cancelPress);
+    item.addEventListener('touchmove',   cancelPress);
+    item.addEventListener('mousedown',   startPress);
+    item.addEventListener('mouseup',     cancelPress);
+    item.addEventListener('mouseleave',  cancelPress);
+
+    item.addEventListener('click', () => {
+      if (wasLongPress) { wasLongPress = false; return; }
+      if (rationaleVisible) { hideRationale(); return; }
+      toggleHabit(item);
+    });
   });
 }
 
