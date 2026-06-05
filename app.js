@@ -39,8 +39,8 @@ const DEFAULT_HABITS = [
   // Movement
   { id: 'move_strength',  label: 'Completed a strength training session',  pillar: 'movement',  weight: 4, points: 2, retroactive: false, opensWorkout: true,  priority: true  },
   { id: 'move_other',     label: 'Completed another workout',              pillar: 'movement',  weight: 2, points: 1, retroactive: false, opensWorkout: true,  priority: false },
-  { id: 'move_walk',      label: 'Morning dog walk',                       pillar: 'movement',  weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'move_mobility',  label: 'Did mobility work or stretching',        pillar: 'movement',  weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'move_walk',      label: 'Morning dog walk',                       pillar: 'movement',  weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, alsoContributes: 'stress', alsoWeight: 1 },
+  { id: 'move_mobility',  label: 'Did mobility work or stretching',        pillar: 'movement',  weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, alsoContributes: 'stress', alsoWeight: 1 },
   // Stress & Recovery
   { id: 'stress_outside', label: 'Got outside today (non-workout time)',   pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'stress_me',      label: 'Did one thing just for me',              pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
@@ -140,7 +140,18 @@ const Store = {
   getWeeklyIntentions(){ return this.get('weekly_intentions', {}); },
   saveWeeklyIntentions(i){ this.set('weekly_intentions', i); },
 
-  getHabitDefs()       { return this.get('habit_defs', DEFAULT_HABITS.map(h => ({...h}))); },
+  getHabitDefs() {
+    const stored = this.get('habit_defs', null);
+    if (!stored) return DEFAULT_HABITS.map(h => ({...h}));
+    // Migrate: merge alsoContributes/alsoWeight from defaults into stored habits
+    return stored.map(h => {
+      const def = DEFAULT_HABITS.find(d => d.id === h.id);
+      if (def && def.alsoContributes && !h.alsoContributes) {
+        return { ...h, alsoContributes: def.alsoContributes, alsoWeight: def.alsoWeight };
+      }
+      return h;
+    });
+  },
   saveHabitDefs(h)     { this.set('habit_defs', h); },
 
   getActivityDefs()    { return this.get('activity_defs', DEFAULT_ACTIVITIES.map(a => ({...a}))); },
@@ -645,15 +656,25 @@ function computePillarScores(days, elapsed, habits) {
   const pillars = ['sleep', 'nutrition', 'movement', 'stress'];
 
   pillars.forEach(pillar => {
-    const pillarHabits = habits.filter(h => h.pillar === pillar);
-    const maxPerDay = pillarHabits.reduce((s, h) => s + h.weight, 0);
+    // Primary habits for this pillar
+    const primary   = habits.filter(h => h.pillar === pillar);
+    // Habits from other pillars that also contribute here
+    const secondary = habits.filter(h => h.pillar !== pillar && h.alsoContributes === pillar);
+
+    const maxPerDay =
+      primary.reduce((s, h) => s + h.weight, 0) +
+      secondary.reduce((s, h) => s + (h.alsoWeight || h.weight), 0);
+
     if (maxPerDay === 0) { scores[pillar] = 0; return; }
 
     let totalEarned = 0;
     days.slice(0, elapsed).forEach(day => {
       const checked = Store.getHabits(day);
-      pillarHabits.forEach(h => {
+      primary.forEach(h => {
         if (checked[h.id]) totalEarned += h.weight;
+      });
+      secondary.forEach(h => {
+        if (checked[h.id]) totalEarned += (h.alsoWeight || h.weight);
       });
     });
 
@@ -1601,6 +1622,9 @@ function renderHabitsCustomizerBody(body) {
             maxlength="60"
             aria-label="Habit name"
           >
+          ${h.alsoContributes
+            ? `<span class="hc-also-tag" title="Also scores toward ${PILLAR_META[h.alsoContributes]?.label}">+${PILLAR_META[h.alsoContributes]?.label.split(' ')[0]}</span>`
+            : ''}
           ${isCustom
             ? `<button class="hc-delete-btn" data-id="${h.id}" title="Delete habit" aria-label="Delete">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1678,6 +1702,15 @@ function renderHabitsCustomizerBody(body) {
             </select>
           </div>
           <div class="form-group">
+            <label class="form-label">Also contributes to <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+            <select class="form-input form-select" id="new-habit-also">
+              <option value="">— None —</option>
+              ${['sleep','nutrition','movement','stress'].filter(p => p !== pillar).map(p =>
+                `<option value="${p}">${PILLAR_META[p].label}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="form-group">
             <label class="form-label">Points</label>
             <select class="form-input form-select" id="new-habit-pts">
               <option value="1">1 point</option>
@@ -1687,26 +1720,39 @@ function renderHabitsCustomizerBody(body) {
           <button class="btn btn-primary btn-full" id="new-habit-save">Add Habit</button>
           <button class="btn btn-outline btn-full mt-8" id="new-habit-back">Back</button>
         `;
+        // Update "also contributes" options when primary pillar changes
+        b.querySelector('#new-habit-pillar').addEventListener('change', e => {
+          const chosen = e.target.value;
+          const also = b.querySelector('#new-habit-also');
+          const prev = also.value;
+          also.innerHTML = `<option value="">— None —</option>` +
+            ['sleep','nutrition','movement','stress'].filter(p => p !== chosen).map(p =>
+              `<option value="${p}" ${p === prev && p !== chosen ? 'selected' : ''}>${PILLAR_META[p].label}</option>`
+            ).join('');
+        });
         b.querySelector('#new-habit-label').focus();
         b.querySelector('#new-habit-back').addEventListener('click', () => openModal(renderHabitsCustomizerBody));
         b.querySelector('#new-habit-save').addEventListener('click', () => {
-          const label  = b.querySelector('#new-habit-label').value.trim();
-          const pillar = b.querySelector('#new-habit-pillar').value;
-          const pts    = parseInt(b.querySelector('#new-habit-pts').value);
+          const label       = b.querySelector('#new-habit-label').value.trim();
+          const pillar      = b.querySelector('#new-habit-pillar').value;
+          const also        = b.querySelector('#new-habit-also').value || null;
+          const pts         = parseInt(b.querySelector('#new-habit-pts').value);
           if (!label) { showToast('Please enter a habit name'); return; }
           const habits = Store.getHabitDefs();
-          habits.push({
-            id:          'custom_' + Date.now(),
+          const entry = {
+            id:             'custom_' + Date.now(),
             label,
             pillar,
-            weight:      pts,
-            points:      pts,
-            enabled:     true,
-            custom:      true,
-            retroactive: false,
-            opensWorkout: false,
-            priority:    false,
-          });
+            weight:         pts,
+            points:         pts,
+            enabled:        true,
+            custom:         true,
+            retroactive:    false,
+            opensWorkout:   false,
+            priority:       false,
+          };
+          if (also) { entry.alsoContributes = also; entry.alsoWeight = pts; }
+          habits.push(entry);
           Store.saveHabitDefs(habits);
           if (currentScreen === 'today') renderToday();
           openModal(renderHabitsCustomizerBody);

@@ -1137,6 +1137,16 @@ textarea.form-input {
 .hc-name-input:focus {
   border-bottom-color: var(--sage);
 }
+.hc-also-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--sage-dark);
+  background: var(--sage-light);
+  padding: 2px 5px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .hc-delete-btn {
   width: 22px;
   height: 22px;
