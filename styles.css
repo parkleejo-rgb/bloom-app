@@ -1141,6 +1141,25 @@ textarea.form-input {
 .hc-name-input:focus {
   border-bottom-color: var(--sage);
 }
+.hc-pts-select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 3px 6px;
+  flex-shrink: 0;
+  cursor: pointer;
+  text-align: center;
+  min-width: 36px;
+  transition: border-color 0.15s;
+}
+.hc-pts-select:focus { outline: none; border-color: var(--sage); }
+
 .hc-also-tag {
   font-size: 10px;
   font-weight: 600;

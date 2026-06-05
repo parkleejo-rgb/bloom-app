@@ -1624,11 +1624,14 @@ function renderHabitsCustomizerBody(body) {
           ${h.alsoContributes
             ? `<span class="hc-also-tag" title="Also scores toward ${PILLAR_META[h.alsoContributes]?.label}">+${PILLAR_META[h.alsoContributes]?.label.split(' ')[0]}</span>`
             : ''}
+          <select class="hc-pts-select" data-id="${h.id}" aria-label="Points">
+            ${[1,2,3].map(n => `<option value="${n}" ${(h.points||1) === n ? 'selected' : ''}>${n}pt</option>`).join('')}
+          </select>
           ${isCustom
             ? `<button class="hc-delete-btn" data-id="${h.id}" title="Delete habit" aria-label="Delete">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                </button>`
-            : `<div style="width:22px;flex-shrink:0"></div>`}
+            : `<div style="width:14px;flex-shrink:0"></div>`}
         </div>
       `;
     });
@@ -1668,6 +1671,21 @@ function renderHabitsCustomizerBody(body) {
       const h = habits.find(x => x.id === input.dataset.id);
       if (h && h.label !== val) {
         h.label = val;
+        Store.saveHabitDefs(habits);
+        if (currentScreen === 'today') renderToday();
+      }
+    });
+  });
+
+  // Points selector
+  body.querySelectorAll('.hc-pts-select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const pts = parseInt(sel.value);
+      const habits = Store.getHabitDefs();
+      const h = habits.find(x => x.id === sel.dataset.id);
+      if (h) {
+        h.points = pts;
+        h.weight = pts;  // also updates pillar bar weighting
         Store.saveHabitDefs(habits);
         if (currentScreen === 'today') renderToday();
       }
