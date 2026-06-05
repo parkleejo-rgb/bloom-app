@@ -27,14 +27,14 @@ const DEFAULT_HABITS = [
   { id: 'sleep_caffeine', label: 'No caffeine after 1pm',                  pillar: 'sleep',     weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'sleep_outside',  label: 'Got outside in the morning (before noon)', pillar: 'sleep',   weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false, alsoContributes: 'stress', alsoWeight: 1 },
   // Nutrition
-  { id: 'nutr_breakfast', label: 'High protein breakfast (30g goal)',      pillar: 'nutrition', weight: 3, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_breakfast', label: 'High protein breakfast (30g goal)',      pillar: 'nutrition', weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_lunch',     label: 'Protein and veg forward lunch',          pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_dinner',    label: 'Protein and veg forward dinner',         pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_no_eat',    label: 'No eating after 7pm',                    pillar: 'nutrition', weight: 3, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_water',     label: 'Drank water first thing this morning',   pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_omega3',    label: 'Took omega-3 supplement',                pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_fiber',     label: 'Had a high-fiber food today',            pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_no_junk',   label: 'Avoided ultra-processed snacks',         pillar: 'nutrition', weight: 3, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_fiber',     label: 'Approx 30g of fiber throughout day',      pillar: 'nutrition', weight: 2, points: 2, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_no_junk',   label: 'No processed meats or packaged snack foods', pillar: 'nutrition', weight: 3, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_alcohol',   label: 'Alcohol-free today',                     pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   // Movement
   { id: 'move_strength',  label: 'Completed a strength training session',  pillar: 'movement',  weight: 4, points: 2, retroactive: false, opensWorkout: true,  priority: true  },
@@ -143,13 +143,32 @@ const Store = {
   getHabitDefs() {
     const stored = this.get('habit_defs', null);
     if (!stored) return DEFAULT_HABITS.map(h => ({...h}));
-    // Migrate: merge alsoContributes/alsoWeight from defaults into stored habits
+
+    // Migrations applied to stored default habits (never overwrites user customizations on custom habits)
+    const LABEL_MIGRATIONS = [
+      { id: 'nutr_breakfast', oldLabel: 'High protein breakfast (30g goal)',  newPoints: 2 },
+      { id: 'nutr_fiber',     oldLabel: 'Had a high-fiber food today',        newLabel: 'Approx 30g of fiber throughout day', newPoints: 2 },
+      { id: 'nutr_no_junk',   oldLabel: 'Avoided ultra-processed snacks',     newLabel: 'No processed meats or packaged snack foods' },
+    ];
+
     return stored.map(h => {
+      if (h.custom) return h; // never touch user-created habits
       const def = DEFAULT_HABITS.find(d => d.id === h.id);
+      let updated = { ...h };
+
+      // Migrate alsoContributes from defaults
       if (def && def.alsoContributes && !h.alsoContributes) {
-        return { ...h, alsoContributes: def.alsoContributes, alsoWeight: def.alsoWeight };
+        updated = { ...updated, alsoContributes: def.alsoContributes, alsoWeight: def.alsoWeight };
       }
-      return h;
+
+      // Migrate label and points for specific habits
+      const m = LABEL_MIGRATIONS.find(x => x.id === h.id);
+      if (m) {
+        if (m.newLabel && h.label === m.oldLabel) updated = { ...updated, label: m.newLabel };
+        if (m.newPoints !== undefined)             updated = { ...updated, points: m.newPoints, weight: m.newPoints };
+      }
+
+      return updated;
     });
   },
   saveHabitDefs(h)     { this.set('habit_defs', h); },
