@@ -25,6 +25,30 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* ─── Splash Screen ──────────────────────────────────────────────────────── */
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.35s ease;
+}
+#splash.splash-out { opacity: 0; pointer-events: none; }
+#splash-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  opacity: 0;
+  transform: scale(0.88);
+  animation: splash-in 0.3s ease 0.05s forwards;
+}
+@keyframes splash-in {
+  to { opacity: 1; transform: scale(1); }
+}
+
 /* ─── Reset & Base ───────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -65,6 +89,19 @@ body {
 }
 
 #header-left { flex: 1; min-width: 0; }
+
+#header-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  flex-shrink: 0;
+  display: block;
+}
 
 #header-date {
   font-size: 18px;
@@ -745,6 +782,19 @@ textarea.form-input {
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 .toggle input:checked + .toggle-track::after { transform: translateX(18px); }
+
+/* ─── Settings Logo ──────────────────────────────────────────────────────── */
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.settings-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  flex-shrink: 0;
+}
 
 /* ─── Settings Screen ────────────────────────────────────────────────────── */
 .settings-section {

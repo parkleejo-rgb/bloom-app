@@ -13,15 +13,23 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2">
 </head>
 <body>
   <div id="app">
 
+    <!-- Splash Screen -->
+    <div id="splash">
+      <img src="apple-touch-icon.png" alt="Bloom" id="splash-logo" style="width:72px;height:72px;border-radius:18px">
+    </div>
+
     <!-- App Header -->
     <header id="app-header">
       <div id="header-left">
-        <div id="header-date"></div>
+        <div id="header-brand">
+          <img src="apple-touch-icon.png" alt="Bloom" class="header-logo" style="width:28px;height:28px;border-radius:7px;flex-shrink:0">
+          <div id="header-date"></div>
+        </div>
         <div id="header-message"></div>
       </div>
       <div id="header-right">
@@ -95,6 +103,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
