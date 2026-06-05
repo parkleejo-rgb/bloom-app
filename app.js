@@ -25,7 +25,7 @@ const DEFAULT_HABITS = [
   { id: 'sleep_bed',      label: 'In bed by 10:30pm',                     pillar: 'sleep',     weight: 3, points: 2, retroactive: true,  opensWorkout: false, priority: false },
   { id: 'sleep_wake',     label: 'Woke up within 30 min of usual wake time', pillar: 'sleep',   weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
   { id: 'sleep_caffeine', label: 'No caffeine after 1pm',                  pillar: 'sleep',     weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'sleep_outside',  label: 'Got outside in the morning (before noon)', pillar: 'sleep',   weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'sleep_outside',  label: 'Got outside in the morning (before noon)', pillar: 'sleep',   weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false, alsoContributes: 'stress', alsoWeight: 1 },
   // Nutrition
   { id: 'nutr_breakfast', label: 'High protein breakfast (30g goal)',      pillar: 'nutrition', weight: 3, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_lunch',     label: 'Protein and veg forward lunch',          pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
