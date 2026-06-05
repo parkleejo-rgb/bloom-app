@@ -1614,14 +1614,13 @@ function renderHabitsCustomizerBody(body) {
             <input type="checkbox" class="habit-toggle" data-id="${h.id}" ${h.enabled !== false ? 'checked' : ''}>
             <div class="toggle-track"></div>
           </label>
-          <input
-            type="text"
+          <textarea
             class="hc-name-input"
             data-id="${h.id}"
-            value="${escHtml(h.label)}"
             maxlength="60"
+            rows="1"
             aria-label="Habit name"
-          >
+          >${escHtml(h.label)}</textarea>
           ${h.alsoContributes
             ? `<span class="hc-also-tag" title="Also scores toward ${PILLAR_META[h.alsoContributes]?.label}">+${PILLAR_META[h.alsoContributes]?.label.split(' ')[0]}</span>`
             : ''}
@@ -1654,11 +1653,17 @@ function renderHabitsCustomizerBody(body) {
     });
   });
 
-  // Rename on blur
+  // Auto-resize textareas and save on blur
   body.querySelectorAll('.hc-name-input').forEach(input => {
+    // Store original so we can revert on empty
+    const original = input.value.trim();
+    // Size to fit content immediately
+    const resize = () => { input.style.height = 'auto'; input.style.height = input.scrollHeight + 'px'; };
+    resize();
+    input.addEventListener('input', resize);
     input.addEventListener('blur', () => {
       const val = input.value.trim();
-      if (!val) { input.value = input.defaultValue; return; }
+      if (!val) { input.value = original; resize(); return; }
       const habits = Store.getHabitDefs();
       const h = habits.find(x => x.id === input.dataset.id);
       if (h && h.label !== val) {

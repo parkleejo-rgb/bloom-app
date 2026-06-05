@@ -1127,12 +1127,16 @@ textarea.form-input {
   outline: none;
   font-family: inherit;
   font-size: 13px;
+  line-height: 1.4;
   color: var(--text);
   background: transparent;
   padding: 2px 0;
   min-width: 0;
   border-bottom: 1px solid transparent;
   transition: border-color 0.15s;
+  resize: none;
+  overflow: hidden;
+  display: block;
 }
 .hc-name-input:focus {
   border-bottom-color: var(--sage);
