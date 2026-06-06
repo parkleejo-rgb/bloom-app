@@ -447,8 +447,8 @@ function updatePointsBadge() {
 /* ─── Habit Rationale Tooltip ────────────────────────────────────────────── */
 
 const HABIT_RATIONALE_BF = {
-  nutr_water:    "Breastfeeding increases fluid needs noticeably — dehydration affects milk supply and is easily mistaken for hunger. Starting the day with water is especially important while breastfeeding.",
-  nutr_breakfast:"Breastfeeding increases daily protein needs by roughly 25g — a high-protein breakfast contributes meaningfully to that higher requirement and sets up better appetite regulation for the rest of the day.",
+  nutr_water:    "Breastfeeding increases your fluid needs and dehydration can affect milk supply. It also tends to feel a lot like hunger.",
+  nutr_breakfast:"Breastfeeding adds roughly 25g to your daily protein needs. A strong breakfast makes a real dent in that.",
 };
 
 function showRationale(habitId, label) {
@@ -690,13 +690,12 @@ function renderWeek() {
       html += `<p class="text-small text-muted">Within normal fluctuation range (±1.5 lbs).</p>`;
     }
     if (settings.breastfeeding) {
-      // Persistent BF weigh-in note (always shown)
-      html += `<p class="text-small text-muted mt-8" style="font-style:italic">Breastfeeding affects how and when your body releases weight — consistency in your habits matters more than any single number.</p>`;
+      html += `<p class="text-small text-muted mt-8" style="font-style:italic">Breastfeeding affects when your body lets go of weight. Your habit consistency over time tells a more honest story than any single weigh-in.</p>`;
       // Plateau note
       const noChangeSince = weighIns.filter(w => w.date <= today).slice(-3);
       const plateau = noChangeSince.length >= 3 && noChangeSince.every(w => Math.abs(w.weight - noChangeSince[0].weight) < 0.5);
       if (plateau) {
-        html += `<p class="text-small text-muted mt-4" style="font-style:italic">Plateaus are common while breastfeeding. Your body may hold onto weight until weaning as a biological reserve for milk production — this is normal and not a reflection of your effort.</p>`;
+        html += `<p class="text-small text-muted mt-4" style="font-style:italic">Plateaus are common while breastfeeding. Your body holds onto fat as a reserve for milk production and that has nothing to do with how hard you're working.</p>`;
       }
     }
     html += `<button class="btn btn-sm btn-outline mt-8" id="reweighin-btn">Update</button>`;
@@ -838,25 +837,25 @@ function getPillarFeedback(pillar, pct, bf) {
       high:   "Sleep discipline is on point this week.",
       mid:    "Sleep domain is building. The bedtime or caffeine cutoff could push this higher.",
       low:    "Sleep is your lowest domain this week. Earlier bedtime or cutting caffeine after 1pm are the highest-leverage changes.",
-      lowBF:  "Interrupted sleep while breastfeeding is largely involuntary — but even small improvements matter. Elevated cortisol from sleep deprivation is one of the strongest barriers to postpartum weight loss. Focus on what you can control: bedtime and caffeine cutoff.",
+      lowBF:  "Broken sleep while breastfeeding is mostly out of your control. The things worth focusing on are bedtime and cutting off caffeine early.",
     },
     nutrition: {
       high:   "Solid nutrition week. Protein and whole foods are showing up.",
       mid:    "Nutrition is at halfway. The after-7pm cutoff or protein at breakfast would move this.",
       low:    "Nutrition domain is low. Start with protein at breakfast — it sets the tone for the day.",
-      lowBF:  "While breastfeeding, consistent nutrition matters more than restriction — undereating can affect milk supply and increase cortisol. Focus on hitting your protein and fiber habits rather than cutting back.",
+      lowBF:  "Undereating while breastfeeding can affect milk supply and raise cortisol. The goal is hitting your protein and fiber habits, not cutting back.",
     },
     movement: {
       high:   "Strong movement week. Strength training is showing up.",
       mid:    "Halfway on movement. One more strength session would push this higher.",
       low:    "Movement is your lowest domain this week. Even 20 minutes of weights counts.",
-      lowBF:  "Postpartum recovery takes longer than most people expect. Two strength sessions this week is a genuine win — your body is doing significant work producing milk on top of everything else.",
+      lowBF:  "Two strength sessions is a genuine win right now. Your body is producing milk on top of everything else you're asking it to do.",
     },
     stress: {
       high:   "Recovery is built into your week. That matters.",
       mid:    "Making progress on stress & recovery. Small things count.",
       low:    "Stress & recovery is low. One thing just for you today is a start.",
-      lowBF:  "Breastfeeding elevates baseline stress hormones even when life feels manageable. Small stress recovery habits compound meaningfully over weeks — they're not optional extras.",
+      lowBF:  "Breastfeeding raises baseline stress hormones even when life feels manageable. These habits are not optional extras.",
     },
   };
   const f = feedbacks[pillar];
@@ -977,7 +976,7 @@ function renderProgress() {
     html += `<div class="avg-loss-stat">Avg change (last 4 weeks): <strong>${sign}${Math.abs(avgLoss).toFixed(1)} lbs/week</strong></div>`;
     // BF rapid loss flag (> 2 lbs/week)
     if (settings.breastfeeding && avgLoss > 2) {
-      html += `<p class="text-small mt-4 bf-flag" style="font-style:italic">You're losing faster than 2 lbs/week on average. Some research suggests rapid loss can affect milk supply — this is worth monitoring.</p>`;
+      html += `<p class="text-small mt-4 bf-flag" style="font-style:italic">Your average loss is over 2 lbs per week. Some research links rapid weight loss to reduced milk supply, so it's worth keeping an eye on.</p>`;
     }
   }
   // BF: plateau message (updated text per spec)
@@ -985,13 +984,12 @@ function renderProgress() {
     const last3 = weighIns.slice(-3);
     const plateau = last3.every(w => Math.abs(w.weight - last3[0].weight) < 0.5);
     if (plateau) {
-      html += `<p class="text-small text-muted mt-8" style="font-style:italic">Plateaus are common while breastfeeding. Your body may hold onto weight until weaning as a biological reserve for milk production — this is normal and not a reflection of your effort.</p>`;
+      html += `<p class="text-small text-muted mt-8" style="font-style:italic">Plateaus are common while breastfeeding. Your body holds onto fat as a reserve for milk production and that has nothing to do with how hard you're working.</p>`;
     }
   }
   // BF: persistent notes (always shown when BF mode on)
   if (settings.breastfeeding) {
-    html += `<p class="text-small text-muted mt-8" style="font-style:italic">While breastfeeding, 0.5–1 lb per week is a healthy and sustainable rate of loss. Your body may also hold onto the last 5–10 lbs until weaning — some women lose this while breastfeeding, others don't, and both are normal.</p>`;
-    html += `<p class="text-small text-muted mt-8" style="font-style:italic">If you're doing everything right and nothing is moving, it's worth asking your doctor about thyroid function — postpartum thyroid changes affect roughly 1 in 10 women and are easily missed.</p>`;
+    html += `<p class="text-small text-muted mt-8" style="font-style:italic">While breastfeeding, 0.5 to 1 lb per week is a healthy rate of loss. The last 5 to 10 lbs often don't shift until after weaning and that's completely normal.</p>`;
   }
   html += `</div>`;
 
@@ -1235,7 +1233,7 @@ function renderSettings() {
         <div class="toggle-row" style="padding:13px 16px">
           <div>
             <div class="toggle-label">Breastfeeding mode</div>
-            <div class="toggle-sublabel">Adjusts weight loss guidance, domain feedback, and messaging throughout the app to reflect breastfeeding biology.</div>
+            <div class="toggle-sublabel">Adjusts guidance and messaging throughout the app to reflect breastfeeding.</div>
           </div>
           <label class="toggle">
             <input type="checkbox" id="s-bf" ${s.breastfeeding ? 'checked' : ''}>
@@ -2267,7 +2265,7 @@ const OB_SCREENS = [
       <div class="toggle-row" style="border:none;padding:0;margin-bottom:16px">
         <div>
           <div class="toggle-label">Breastfeeding mode</div>
-          <div class="toggle-sublabel">Adjusts weight loss timelines and plateau messaging to reflect postpartum biology.</div>
+          <div class="toggle-sublabel">Adjusts guidance and messaging throughout the app to reflect breastfeeding.</div>
         </div>
         <label class="toggle" style="flex-shrink:0;margin-left:12px">
           <input type="checkbox" id="ob-bf">
@@ -2285,7 +2283,7 @@ const OB_SCREENS = [
         <img src="apple-touch-icon.png" alt="Bloom" class="ob-logo">
         <h1 class="ob-headline">You're all set.</h1>
         <p class="ob-body">Check in daily, reflect weekly, and let the consistency do the work. Postpartum progress is not linear — the domains are there to show you the full picture, not just the scale.</p>
-        ${bf ? `<p class="ob-body" style="font-style:italic;font-size:13px">With breastfeeding mode on, the app will reflect realistic timelines and give you context when your body is doing something biologically normal.</p>` : ''}
+        ${bf ? `<p class="ob-body" style="font-style:italic;font-size:13px">Breastfeeding mode is on. Timelines and messages throughout the app reflect what's actually happening in your body, not generic weight loss expectations.</p>` : ''}
         <button class="ob-btn" id="ob-next">Get started</button>
       </div>
     `;
