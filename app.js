@@ -811,10 +811,13 @@ function renderSavingsBar(points, goals, settings) {
       <div class="row"><span>Total dollars earned (all time)</span><span class="val">$${totalDollars.toFixed(2)}</span></div>
       <div class="row"><span>Available to spend</span><span class="val">$${spendableDollars.toFixed(2)}</span></div>
       ${recentEvents.length ? `
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Recent points</div>
-          ${historyRows}
-        </div>` : ''}
+        <details style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+          <summary style="font-size:12px;color:var(--text-muted);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">
+            <span>Recent points</span>
+            <span style="font-size:10px;opacity:0.6">tap to expand</span>
+          </summary>
+          <div style="margin-top:8px">${historyRows}</div>
+        </details>` : ''}
     </div>
   `;
   html += `</div>`;
