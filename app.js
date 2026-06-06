@@ -299,7 +299,8 @@ const Points = {
   },
   deduct(amount, reason) {
     const p = Store.getPoints();
-    p.spendable = Math.max(0, p.spendable - amount);
+    p.spendable    = Math.max(0, p.spendable    - amount);
+    p.total_earned = Math.max(0, p.total_earned - amount);
     p.history.push({ date: todayStr(), amount: -amount, reason });
     Store.savePoints(p);
     updatePointsBadge();
@@ -771,7 +772,7 @@ function renderSavingsBar(points, goals, settings) {
     html += `<div class="savings-goal-name">${goalName}</div>`;
     html += `
       <div class="savings-amounts">
-        <span>$${spendableDollars.toFixed(2)} earned</span>
+        <span>$${spendableDollars.toFixed(2)} available</span>
         <span>Goal: $${goalAmt.toFixed(2)}</span>
       </div>
       <div class="progress-bar-wrap">
@@ -795,9 +796,9 @@ function renderSavingsBar(points, goals, settings) {
   html += `
     <div class="savings-points-breakdown">
       <div class="row"><span>Points this week</span><span class="val">${weekPts} pts ($${(weekPts * rate).toFixed(2)})</span></div>
-      <div class="row"><span>Total points earned</span><span class="val">${points.total_earned} pts</span></div>
-      <div class="row"><span>Total dollars earned</span><span class="val">$${totalDollars.toFixed(2)}</span></div>
-      <div class="row"><span>Spendable balance</span><span class="val">$${spendableDollars.toFixed(2)}</span></div>
+      <div class="row"><span>Total points earned (all time)</span><span class="val">${points.total_earned} pts</span></div>
+      <div class="row"><span>Total dollars earned (all time)</span><span class="val">$${totalDollars.toFixed(2)}</span></div>
+      <div class="row"><span>Available to spend</span><span class="val">$${spendableDollars.toFixed(2)}</span></div>
     </div>
   `;
   html += `</div>`;
@@ -2931,6 +2932,19 @@ function init() {
     // New day — nothing to reset (habits are stored by date, so already separate)
   }
   Store.set('last_open_date', today);
+
+  // One-time repair: total_earned was not decremented on habit uncheck, so it
+  // inflated above the correct value. Recompute as spendable + all cashed-out pts.
+  (() => {
+    const p = Store.getPoints();
+    const g = Store.getGoals();
+    const cashedOut = (g.history || []).reduce((s, h) => s + (h.points || 0), 0);
+    const correct   = p.spendable + cashedOut;
+    if (p.total_earned !== correct) {
+      p.total_earned = correct;
+      Store.savePoints(p);
+    }
+  })();
 
   // Update header message daily
   setInterval(updateHeader, 60 * 60 * 1000);
