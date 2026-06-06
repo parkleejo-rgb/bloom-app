@@ -793,12 +793,28 @@ function renderSavingsBar(points, goals, settings) {
     }
   }
 
+  // Recent points history (last 20 positive events, newest first)
+  const recentEvents = (points.history || [])
+    .filter(h => h.amount > 0)
+    .slice(-20).reverse();
+  const historyRows = recentEvents.map(h =>
+    `<div class="row" style="font-size:12px;color:var(--text-muted)">
+      <span>${h.date} — ${escHtml(h.reason || '')}</span>
+      <span class="val">+${h.amount} pt${h.amount !== 1 ? 's' : ''}</span>
+    </div>`
+  ).join('');
+
   html += `
     <div class="savings-points-breakdown">
       <div class="row"><span>Points this week</span><span class="val">${weekPts} pts ($${(weekPts * rate).toFixed(2)})</span></div>
       <div class="row"><span>Total points earned (all time)</span><span class="val">${points.total_earned} pts</span></div>
       <div class="row"><span>Total dollars earned (all time)</span><span class="val">$${totalDollars.toFixed(2)}</span></div>
       <div class="row"><span>Available to spend</span><span class="val">$${spendableDollars.toFixed(2)}</span></div>
+      ${recentEvents.length ? `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Recent points</div>
+          ${historyRows}
+        </div>` : ''}
     </div>
   `;
   html += `</div>`;
