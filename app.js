@@ -232,8 +232,14 @@ const Store = {
 
 /* ─── Date Utilities ─────────────────────────────────────────────────────── */
 
-function dateStr(d)    { return d.toISOString().slice(0, 10); }
-function todayStr()    { return dateStr(new Date()); }
+function dateStr(d) {
+  // Use local date, not UTC — toISOString() would give "tomorrow" for US timezones in the evening
+  const y  = d.getFullYear();
+  const m  = String(d.getMonth() + 1).padStart(2, '0');
+  const dy = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dy}`;
+}
+function todayStr() { return dateStr(new Date()); }
 function parseDate(s)  { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
 
 function getWeekStart(date) {
@@ -576,7 +582,10 @@ function renderWeek() {
   const wsStr  = dateStr(ws);
   const days   = getWeekDays(ws);
   const today  = todayStr();
-  const elapsed = daysElapsedThisWeek();
+  const appStart   = settings.appStartDate || wsStr;
+  const today      = todayStr();
+  const activeDays = days.filter(d => d >= appStart && d <= today);
+  const elapsed    = Math.max(1, activeDays.length);
   const settings = Store.getSettings();
   const habits = Store.getHabitDefs().filter(h => h.enabled !== false);
   const intentions = Store.getWeeklyIntentions();
@@ -609,7 +618,11 @@ function renderWeek() {
   }
 
   // Week range
-  html += `<p class="text-muted text-small mb-8">${formatWeekRange(ws)} &nbsp;·&nbsp; Day ${elapsed} of 7</p>`;
+  const daysIntoWeek = daysElapsedThisWeek();
+  const trackingNote = elapsed < daysIntoWeek
+    ? `Tracking day ${elapsed} of ${daysIntoWeek} this week`
+    : `Day ${elapsed} of 7`;
+  html += `<p class="text-muted text-small mb-8">${formatWeekRange(ws)} &nbsp;·&nbsp; ${trackingNote}</p>`;
 
   // Pillar bars
   html += `<div class="card">`;
@@ -772,13 +785,17 @@ function renderSavingsBar(points, goals, settings) {
 }
 
 function computePillarScores(days, elapsed, habits) {
-  const scores = {};
+  const scores  = {};
   const pillars = ['sleep', 'nutrition', 'movement', 'stress'];
 
+  // Only count days the user was actually tracking (on or after appStartDate)
+  const appStart   = Store.getSettings().appStartDate || days[0];
+  const today      = todayStr();
+  const activeDays = days.filter(d => d >= appStart && d <= today);
+  const activeCount = Math.max(1, activeDays.length);
+
   pillars.forEach(pillar => {
-    // Primary habits for this pillar
     const primary   = habits.filter(h => h.pillar === pillar);
-    // Habits from other pillars that also contribute here
     const secondary = habits.filter(h => h.pillar !== pillar && h.alsoContributes === pillar);
 
     const maxPerDay =
@@ -788,7 +805,7 @@ function computePillarScores(days, elapsed, habits) {
     if (maxPerDay === 0) { scores[pillar] = 0; return; }
 
     let totalEarned = 0;
-    days.slice(0, elapsed).forEach(day => {
+    activeDays.forEach(day => {
       const checked = Store.getHabits(day);
       primary.forEach(h => {
         if (checked[h.id]) totalEarned += h.weight;
@@ -798,7 +815,7 @@ function computePillarScores(days, elapsed, habits) {
       });
     });
 
-    scores[pillar] = totalEarned / (elapsed * maxPerDay);
+    scores[pillar] = totalEarned / (activeCount * maxPerDay);
   });
 
   return scores;
