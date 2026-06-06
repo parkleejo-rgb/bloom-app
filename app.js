@@ -2379,10 +2379,9 @@ const OB_SCREENS = [
     </div>
   `,
   // Screen 4 — Quick setup
-  () => `
-    (() => {
-      const s = Store.getSettings();
-      return `<div class="ob-screen">
+  () => {
+    const s = Store.getSettings();
+    return `<div class="ob-screen">
       <h1 class="ob-headline">A few things to get you started.</h1>
       <p class="ob-body">You can update all of these anytime in Settings.</p>
       <div class="form-group">
@@ -2412,8 +2411,7 @@ const OB_SCREENS = [
       </div>
       <button class="ob-btn" id="ob-next">Next</button>
     </div>`;
-    })()
-  `,
+  },
   // Screen 5 — Done
   () => {
     const bf = Store.getSettings().breastfeeding;
