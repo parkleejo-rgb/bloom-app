@@ -319,9 +319,9 @@ const Points = {
     const ws = dateStr(getWeekStart());
     const we = new Date(getWeekStart()); we.setDate(we.getDate() + 6);
     const weStr = dateStr(we);
-    return Store.getPoints().history
-      .filter(h => h.date >= ws && h.date <= weStr && h.amount > 0)
-      .reduce((s, h) => s + h.amount, 0);
+    return Math.max(0, Store.getPoints().history
+      .filter(h => h.date >= ws && h.date <= weStr)
+      .reduce((s, h) => s + h.amount, 0));
   },
 };
 
@@ -2971,17 +2971,32 @@ function init() {
   }
   Store.set('last_open_date', today);
 
-  // One-time repair: total_earned was not decremented on habit uncheck, so it
-  // inflated above the correct value. Recompute as spendable + all cashed-out pts.
+  // Repair: recompute both spendable and total_earned from history.
+  // - spendable = net of all history amounts since last cash-out (floor 0)
+  // - total_earned = spendable + total points ever cashed out
+  // This fixes inflation caused by toggle bug (uncheck didn't decrement total_earned).
   (() => {
     const p = Store.getPoints();
     const g = Store.getGoals();
-    const cashedOut = (g.history || []).reduce((s, h) => s + (h.points || 0), 0);
-    const correct   = p.spendable + cashedOut;
-    if (p.total_earned !== correct) {
-      p.total_earned = correct;
-      Store.savePoints(p);
-    }
+    if (!p.history || p.history.length === 0) return;
+
+    const cashedOutPts = (g.history || []).reduce((s, h) => s + (h.points || 0), 0);
+
+    // Find the date of the most recent cash-out so we only net history after it
+    const cashOutDates = (g.history || []).map(h => h.date || '').filter(Boolean).sort();
+    const lastCashOut  = cashOutDates[cashOutDates.length - 1] || '';
+
+    const relevantHistory = lastCashOut
+      ? p.history.filter(h => (h.date || '') >= lastCashOut)
+      : p.history;
+
+    const netSpendable   = Math.max(0, relevantHistory.reduce((s, h) => s + (h.amount || 0), 0));
+    const correctTotal   = netSpendable + cashedOutPts;
+
+    let changed = false;
+    if (p.spendable    !== netSpendable)  { p.spendable    = netSpendable;  changed = true; }
+    if (p.total_earned !== correctTotal)  { p.total_earned = correctTotal;  changed = true; }
+    if (changed) Store.savePoints(p);
   })();
 
   // Update header message daily
