@@ -116,8 +116,8 @@ const GOOGLE_CLIENT_ID = '763862383625-3gpodcsd248v47k5f35oh2ptobendksu.apps.goo
 const DEFAULT_SETTINGS = {
   name: '',
   startingWeight: null,
-  goalWeightLow: 135,
-  goalWeightHigh: 145,
+  goalWeightLow: null,
+  goalWeightHigh: null,
   appStartDate: dateStr(new Date()),
   breastfeeding: false,
   usualWakeTime: '07:00',
@@ -2355,8 +2355,9 @@ const OB_SCREENS = [
     </div>
   `,
   // Screen 3 — Reward goal
-  () => `
-    <div class="ob-screen">
+  () => {
+    const g = Store.getGoals();
+    return `<div class="ob-screen">
       <h1 class="ob-headline">What are you working toward?</h1>
       <p class="ob-body">Every habit you check off earns points toward a personal reward. Set a goal now or come back to it later.</p>
       <div class="ob-chips">
@@ -2368,16 +2369,16 @@ const OB_SCREENS = [
         <button class="ob-chip" data-label="">＋ Something else</button>
       </div>
       <div class="form-group">
-        <input class="form-input" id="ob-goal-name" type="text" placeholder="Name your goal" maxlength="60" autocomplete="off">
+        <input class="form-input" id="ob-goal-name" type="text" placeholder="Name your goal" maxlength="60" autocomplete="off" value="${escHtml(g.name || '')}">
       </div>
       <div class="form-group">
-        <input class="form-input" id="ob-goal-amount" type="number" placeholder="How much does it cost? ($)" step="1" min="0">
+        <input class="form-input" id="ob-goal-amount" type="number" placeholder="How much does it cost? ($)" step="1" min="0" value="${g.amount || ''}">
       </div>
       <p class="ob-note">You can change this anytime in Settings.</p>
       <button class="ob-btn" id="ob-next">Next</button>
       <button class="ob-skip-step" id="ob-skip-goal">I'll set this later</button>
-    </div>
-  `,
+    </div>`;
+  },
   // Screen 4 — Quick setup
   () => {
     const s = Store.getSettings();
@@ -2468,15 +2469,15 @@ function renderObScreen(n) {
     const dy = e.changedTouches[0].clientY - touchStartY;
     if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return; // too small or mostly vertical
     if (dx < 0) {
-      obAdvance(n);           // swipe left → next
+      obAdvance(n);              // swipe left → next (saves + advances)
     } else if (n > 0) {
-      renderObScreen(n - 1);  // swipe right → back
+      obSaveScreen(n);           // save current inputs before going back
+      renderObScreen(n - 1);    // swipe right → back
     }
   }, { passive: true });
 }
 
-function obAdvance(n) {
-  // Save data from screens 3 and 4
+function obSaveScreen(n) {
   if (n === 2) {
     const name   = document.getElementById('ob-goal-name')?.value.trim();
     const amount = parseFloat(document.getElementById('ob-goal-amount')?.value);
@@ -2488,19 +2489,23 @@ function obAdvance(n) {
     }
   }
   if (n === 3) {
-    const s = Store.getSettings();
-    const name   = document.getElementById('ob-name')?.value.trim();
-    const sw     = parseFloat(document.getElementById('ob-start-weight')?.value);
-    const gl     = parseFloat(document.getElementById('ob-goal-low')?.value);
-    const gh     = parseFloat(document.getElementById('ob-goal-high')?.value);
-    const bf     = document.getElementById('ob-bf')?.checked;
-    if (name)   s.name          = name;
+    const s  = Store.getSettings();
+    const name = document.getElementById('ob-name')?.value.trim();
+    const sw   = parseFloat(document.getElementById('ob-start-weight')?.value);
+    const gl   = parseFloat(document.getElementById('ob-goal-low')?.value);
+    const gh   = parseFloat(document.getElementById('ob-goal-high')?.value);
+    const bf   = document.getElementById('ob-bf')?.checked;
+    if (name)    s.name           = name;
     if (!isNaN(sw)) s.startingWeight = sw;
     if (!isNaN(gl)) s.goalWeightLow  = gl;
     if (!isNaN(gh)) s.goalWeightHigh = gh;
     s.breastfeeding = bf || false;
     Store.saveSettings(s);
   }
+}
+
+function obAdvance(n) {
+  obSaveScreen(n);
 
   if (n >= OB_SCREENS.length - 1) {
     closeOnboarding();
