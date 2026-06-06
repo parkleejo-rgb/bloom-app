@@ -577,16 +577,20 @@ function toggleHabit(item) {
 /* ─── THIS WEEK Screen ───────────────────────────────────────────────────── */
 
 function renderWeek() {
-  const screen = document.getElementById('screen-week');
-  const ws     = getWeekStart();
-  const wsStr  = dateStr(ws);
-  const days   = getWeekDays(ws);
-  const today  = todayStr();
-  const appStart   = settings.appStartDate || wsStr;
-  const today      = todayStr();
-  const activeDays = days.filter(d => d >= appStart && d <= today);
-  const elapsed    = Math.max(1, activeDays.length);
+  const screen   = document.getElementById('screen-week');
+  const ws       = getWeekStart();
+  const wsStr    = dateStr(ws);
+  const days     = getWeekDays(ws);
+  const today    = todayStr();
   const settings = Store.getSettings();
+
+  // First week of tracking: count from appStartDate so missed days don't drag bars down.
+  // All subsequent weeks: count from Monday as normal.
+  const appStart      = settings.appStartDate || wsStr;
+  const isFirstWeek   = appStart >= wsStr && appStart <= days[6]; // appStart falls in this week
+  const countFromDay  = isFirstWeek ? appStart : wsStr;
+  const activeDays    = days.filter(d => d >= countFromDay && d <= today);
+  const elapsed       = Math.max(1, activeDays.length);
   const habits = Store.getHabitDefs().filter(h => h.enabled !== false);
   const intentions = Store.getWeeklyIntentions();
   const weeklyNotes = Store.getWeeklyNotes();
@@ -594,8 +598,8 @@ function renderWeek() {
   const points = Store.getPoints();
   const goals  = Store.getGoals();
 
-  // Compute pillar scores
-  const pillarScores = computePillarScores(days, elapsed, habits);
+  // Compute pillar scores — pass activeDays so the function uses the right window
+  const pillarScores = computePillarScores(activeDays, habits);
 
   // Current week weight
   const thisWeekWeighIn = weighIns.find(w => w.date >= wsStr && w.date <= days[6]);
@@ -619,8 +623,8 @@ function renderWeek() {
 
   // Week range
   const daysIntoWeek = daysElapsedThisWeek();
-  const trackingNote = elapsed < daysIntoWeek
-    ? `Tracking day ${elapsed} of ${daysIntoWeek} this week`
+  const trackingNote = isFirstWeek && elapsed < daysIntoWeek
+    ? `Day ${elapsed} tracked this week (started ${formatDateShort(appStart)})`
     : `Day ${elapsed} of 7`;
   html += `<p class="text-muted text-small mb-8">${formatWeekRange(ws)} &nbsp;·&nbsp; ${trackingNote}</p>`;
 
@@ -784,14 +788,9 @@ function renderSavingsBar(points, goals, settings) {
   return html;
 }
 
-function computePillarScores(days, elapsed, habits) {
-  const scores  = {};
-  const pillars = ['sleep', 'nutrition', 'movement', 'stress'];
-
-  // Only count days the user was actually tracking (on or after appStartDate)
-  const appStart   = Store.getSettings().appStartDate || days[0];
-  const today      = todayStr();
-  const activeDays = days.filter(d => d >= appStart && d <= today);
+function computePillarScores(activeDays, habits) {
+  const scores     = {};
+  const pillars    = ['sleep', 'nutrition', 'movement', 'stress'];
   const activeCount = Math.max(1, activeDays.length);
 
   pillars.forEach(pillar => {
@@ -1000,9 +999,13 @@ function renderProgress() {
     const meta = PILLAR_META[p];
     const dots = weeks8.map(ws => {
       const days = getWeekDays(ws);
-      const elapsed = Math.min(7, days.filter(d => d <= todayStr()).length);
-      if (!elapsed) return false;
-      const scores = computePillarScores(days, elapsed, habits);
+      const wsDayStr = dateStr(ws);
+      const appStart = Store.getSettings().appStartDate || wsDayStr;
+      const isFirst  = appStart >= wsDayStr && appStart <= days[6];
+      const fromDay  = isFirst ? appStart : wsDayStr;
+      const activeDays = days.filter(d => d >= fromDay && d <= todayStr());
+      if (!activeDays.length) return false;
+      const scores = computePillarScores(activeDays, habits);
       return (scores[p] || 0) >= 0.5;
     });
     html += `
