@@ -108,6 +108,11 @@ const BADGE_DEFINITIONS = [
   { id: 'month_strength',  label: 'Month of 3+ strength/wk', icon: '🦋',  bonusPoints: 0,  group: 'fitness' },
 ];
 
+// Set your Google Cloud OAuth 2.0 client ID here to enable Sheets backup.
+// Create one at console.cloud.google.com → APIs & Services → Credentials.
+// Enable the Google Sheets API and add your app's origin to allowed JavaScript origins.
+const GOOGLE_CLIENT_ID = '763862383625-3gpodcsd248v47k5f35oh2ptobendksu.apps.googleusercontent.com';
+
 const DEFAULT_SETTINGS = {
   name: '',
   startingWeight: null,
@@ -137,25 +142,25 @@ const Store = {
   remove(key) { localStorage.removeItem('bloom_' + key); },
 
   getSettings()   { return { ...DEFAULT_SETTINGS, ...this.get('settings', {}) }; },
-  saveSettings(s) { this.set('settings', s); },
+  saveSettings(s) { this.set('settings', s); SheetsSync.schedule(); },
 
   getHabits(date)      { return this.get('habits_' + date, {}); },
-  saveHabits(date, h)  { this.set('habits_' + date, h); },
+  saveHabits(date, h)  { this.set('habits_' + date, h); SheetsSync.schedule(); },
 
   getWeighIns()        { return this.get('weighins', []); },
-  saveWeighIns(a)      { this.set('weighins', a); },
+  saveWeighIns(a)      { this.set('weighins', a); SheetsSync.schedule(); },
 
   getWorkouts()        { return this.get('workouts', []); },
-  saveWorkouts(a)      { this.set('workouts', a); },
+  saveWorkouts(a)      { this.set('workouts', a); SheetsSync.schedule(); },
 
   getPoints()          { return this.get('points', { total_earned: 0, spendable: 0, history: [] }); },
-  savePoints(p)        { this.set('points', p); },
+  savePoints(p)        { this.set('points', p); SheetsSync.schedule(); },
 
   getGoals()           { return this.get('goals', { name: '', amount: 0, history: [] }); },
-  saveGoals(g)         { this.set('goals', g); },
+  saveGoals(g)         { this.set('goals', g); SheetsSync.schedule(); },
 
   getBadges()          { return this.get('badges', {}); },
-  saveBadges(b)        { this.set('badges', b); },
+  saveBadges(b)        { this.set('badges', b); SheetsSync.schedule(); },
 
   getWeeklyNotes()     { return this.get('weekly_notes', {}); },
   saveWeeklyNotes(n)   { this.set('weekly_notes', n); },
@@ -1182,6 +1187,42 @@ function initWeightChart(weighIns, settings) {
 
 /* ─── SETTINGS Screen ────────────────────────────────────────────────────── */
 
+function renderSheetsSyncSection() {
+  const connected  = SheetsSync.isConnected();
+  const account    = SheetsSync.getAccount();
+  const lastSynced = SheetsSync.formatLastSynced();
+  const needsReauth = !!localStorage.getItem('bloom_google_reauth_needed');
+  const pending    = SheetsSync.getQueue().length > 0;
+
+  if (!connected) {
+    return `
+      <div class="settings-group">
+        <div style="padding:13px 16px">
+          <p class="settings-btn-desc" style="margin-bottom:10px">Your data is stored on this device. Connect Google Sheets to automatically back it up to your own Google Drive — and restore it if your local data is ever lost.</p>
+          <button class="btn btn-outline btn-sm" id="s-sheets-connect" style="width:100%">Connect Google Sheets backup</button>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="settings-group">
+      <div style="padding:13px 16px">
+        ${needsReauth ? `<p style="color:#b45309;font-size:13px;margin-bottom:10px;font-style:italic">Google Sheets sync hasn't connected in 7 days. Tap Reconnect below.</p>` : ''}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:14px;font-weight:500;color:var(--text)">Connected ✓</span>
+          ${account ? `<span style="font-size:12px;color:var(--text-muted)">${escHtml(account)}</span>` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Last synced: ${lastSynced}${pending ? ' · Sync pending' : ''}</div>
+        <div style="display:flex;gap:8px">
+          ${needsReauth
+            ? `<button class="btn btn-outline btn-sm" id="s-sheets-connect" style="flex:1">Reconnect</button>`
+            : `<button class="btn btn-outline btn-sm" id="s-sheets-sync" style="flex:1">Sync now</button>`}
+          <button class="btn btn-outline btn-sm" id="s-sheets-disconnect" style="flex:1;color:var(--text-muted)">Disconnect</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderSettings() {
   const screen = document.getElementById('screen-settings');
   const s = Store.getSettings();
@@ -1302,8 +1343,9 @@ function renderSettings() {
     </div>
 
     <div class="settings-section">
-      <div class="settings-section-title">Data</div>
-      <div class="settings-group">
+      <div class="settings-section-title">Data &amp; Backup</div>
+      ${renderSheetsSyncSection(s)}
+      <div class="settings-group" style="margin-top:12px">
         <div class="settings-btn-row" id="s-export">
           <div class="settings-btn-label">Export all data (JSON)</div>
         </div>
@@ -1356,11 +1398,33 @@ function renderSettings() {
   screen.querySelector('#s-habits')?.addEventListener('click', openHabitsCustomizer);
   screen.querySelector('#s-activities')?.addEventListener('click', openActivitiesCustomizer);
 
+  screen.querySelector('#s-sheets-connect')?.addEventListener('click', async () => {
+    await SheetsSync.connect().catch(() => showToast('Connection failed. Please try again.'));
+  });
+  screen.querySelector('#s-sheets-sync')?.addEventListener('click', async () => {
+    showToast('Syncing…');
+    await SheetsSync.syncAll();
+    showToast('Synced.', 'success');
+    renderSettings();
+  });
+  screen.querySelector('#s-sheets-disconnect')?.addEventListener('click', () => {
+    openConfirm(
+      'Disconnect Google Sheets?',
+      'Syncing will stop. Your Google Sheet will not be deleted — you can reconnect anytime.',
+      'Disconnect',
+      () => SheetsSync.disconnect(),
+      true
+    );
+  });
+
   screen.querySelector('#s-export')?.addEventListener('click', exportData);
   screen.querySelector('#s-reset')?.addEventListener('click', () => {
+    const sheetsNote = SheetsSync.isConnected()
+      ? ' Note: this will not delete your Google Sheets backup. You can restore your data later.'
+      : '';
     openConfirm(
       'Reset all data?',
-      'This will permanently delete all your habits, workouts, weigh-ins, and points. This cannot be undone.',
+      `This will permanently delete all your habits, workouts, weigh-ins, and points. This cannot be undone.${sheetsNote}`,
       'Delete Everything',
       () => {
         openConfirm(
@@ -2367,6 +2431,454 @@ function closeOnboarding() {
 
 /* ─── Init ───────────────────────────────────────────────────────────────── */
 
+/* ─── Google Sheets Sync ─────────────────────────────────────────────────── */
+
+const SheetsSync = {
+  _gapiReady:    false,
+  _debounceTimer: null,
+  _restoring:    false,
+
+  // ── Stored state ──────────────────────────────────────────────────────────
+
+  getStoredToken() {
+    try { return JSON.parse(localStorage.getItem('bloom_google_token')); } catch { return null; }
+  },
+  setStoredToken(t) {
+    if (t) localStorage.setItem('bloom_google_token', JSON.stringify(t));
+    else   localStorage.removeItem('bloom_google_token');
+  },
+  getSheetId()    { return localStorage.getItem('bloom_sheets_id') || null; },
+  setSheetId(id)  {
+    if (id) localStorage.setItem('bloom_sheets_id', id);
+    else    localStorage.removeItem('bloom_sheets_id');
+  },
+  getLastSynced() { return localStorage.getItem('bloom_last_synced') || null; },
+  setLastSynced(t){
+    if (t) localStorage.setItem('bloom_last_synced', t);
+    else   localStorage.removeItem('bloom_last_synced');
+  },
+  getAccount()    { return localStorage.getItem('bloom_sync_account') || null; },
+  setAccount(e)   {
+    if (e) localStorage.setItem('bloom_sync_account', e);
+    else   localStorage.removeItem('bloom_sync_account');
+  },
+  getQueue() {
+    try { return JSON.parse(localStorage.getItem('bloom_sync_queue') || '[]'); } catch { return []; }
+  },
+  setQueue(q) { localStorage.setItem('bloom_sync_queue', JSON.stringify(q)); },
+
+  isConnected() { return !!(this.getStoredToken() && this.getSheetId()); },
+
+  // ── App load init ─────────────────────────────────────────────────────────
+
+  async init() {
+    if (!this.isConnected()) return;
+    const token = this.getStoredToken();
+    if (!token) return;
+    if (token.expires_at && Date.now() < token.expires_at - 60000) {
+      try {
+        await this._loadGapi();
+        gapi.client.setToken({ access_token: token.access_token });
+        this._gapiReady = true;
+        await this._retryQueue();
+      } catch {}
+    }
+    this._checkStaleness();
+  },
+
+  // ── OAuth connect ─────────────────────────────────────────────────────────
+
+  async connect() {
+    if (!GOOGLE_CLIENT_ID) {
+      showToast('No Google Client ID configured. See the GOOGLE_CLIENT_ID constant in app.js.');
+      return;
+    }
+    try { await this._loadGapi(); }
+    catch {
+      showToast('Google API failed to load. Check your connection.');
+      return;
+    }
+    return new Promise((resolve, reject) => {
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email',
+        callback: async (resp) => {
+          if (resp.error) { reject(new Error(resp.error)); return; }
+          const tokenData = {
+            access_token: resp.access_token,
+            expires_at:   Date.now() + (parseInt(resp.expires_in) * 1000),
+          };
+          this.setStoredToken(tokenData);
+          gapi.client.setToken({ access_token: resp.access_token });
+          this._gapiReady = true;
+          try {
+            const userResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${resp.access_token}` }
+            });
+            const info = await userResp.json();
+            if (info.email) this.setAccount(info.email);
+          } catch {}
+          try {
+            const sheetId = await this._createSpreadsheet();
+            this.setSheetId(sheetId);
+            localStorage.removeItem('bloom_google_reauth_needed');
+            await this.syncAll();
+            showToast('Backup connected. Your data is now syncing to Google Sheets in your Drive.', 'success');
+            renderSettings();
+            resolve();
+          } catch(e) { reject(e); }
+        }
+      });
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    });
+  },
+
+  disconnect() {
+    this.setStoredToken(null);
+    this.setSheetId(null);
+    this.setLastSynced(null);
+    this.setAccount(null);
+    this.setQueue([]);
+    localStorage.removeItem('bloom_google_reauth_needed');
+    renderSettings();
+  },
+
+  // ── Debounced sync trigger (called by Store save methods) ─────────────────
+
+  schedule() {
+    if (!this.isConnected() || this._restoring) return;
+    clearTimeout(this._debounceTimer);
+    this._debounceTimer = setTimeout(() => { this.syncAll(); }, 3000);
+  },
+
+  // ── Full sync ─────────────────────────────────────────────────────────────
+
+  async syncAll() {
+    if (!this.isConnected()) return;
+    try {
+      await this._ensureToken();
+      const id = this.getSheetId();
+      await this._syncWeighInsTab(id);
+      await this._syncHabitsTab(id);
+      await this._syncWorkoutsTab(id);
+      await this._syncPointsTab(id);
+      await this._syncGoalsTab(id);
+      await this._syncSettingsTab(id);
+      await this._syncBadgesTab(id);
+      this.setLastSynced(new Date().toISOString());
+      this.setQueue([]);
+      localStorage.removeItem('bloom_google_reauth_needed');
+      // Refresh settings panel if open
+      const el = document.querySelector('#screen-settings');
+      if (el && el.classList.contains('active')) renderSettings();
+    } catch(e) {
+      this._queueSync();
+      if (e.message === 'Token expired' || (e.status && e.status === 401)) {
+        localStorage.setItem('bloom_google_reauth_needed', '1');
+      }
+    }
+  },
+
+  // ── Token management ──────────────────────────────────────────────────────
+
+  async _ensureToken() {
+    const token = this.getStoredToken();
+    if (!token) throw new Error('Not connected');
+    if (token.expires_at && Date.now() > token.expires_at - 60000) throw new Error('Token expired');
+    if (!this._gapiReady) {
+      await this._loadGapi();
+      gapi.client.setToken({ access_token: token.access_token });
+      this._gapiReady = true;
+    }
+  },
+
+  async _loadGapi() {
+    if (this._gapiReady) return;
+    await new Promise((resolve, reject) => {
+      if (typeof gapi === 'undefined') { reject(new Error('gapi not loaded')); return; }
+      gapi.load('client', { callback: resolve, onerror: reject });
+    });
+    await gapi.client.init({});
+    await gapi.client.load('https://sheets.googleapis.com/$discovery/rest?version=v4');
+  },
+
+  // ── Offline queue ─────────────────────────────────────────────────────────
+
+  _queueSync() {
+    const q = this.getQueue();
+    q.push({ ts: Date.now() });
+    if (q.length > 50) q.splice(0, q.length - 50);
+    this.setQueue(q);
+  },
+
+  async _retryQueue() {
+    if (this.getQueue().length > 0) await this.syncAll();
+  },
+
+  _checkStaleness() {
+    const last = this.getLastSynced();
+    if (!last) return;
+    const daysSince = (Date.now() - new Date(last).getTime()) / 86400000;
+    if (daysSince > 7) localStorage.setItem('bloom_google_reauth_needed', '1');
+  },
+
+  // ── Spreadsheet creation ──────────────────────────────────────────────────
+
+  async _createSpreadsheet() {
+    const resp = await gapi.client.sheets.spreadsheets.create({
+      resource: {
+        properties: { title: 'Bloom Data' },
+        sheets: [
+          { properties: { title: 'Weigh-ins'    } },
+          { properties: { title: 'Daily Habits' } },
+          { properties: { title: 'Workouts'     } },
+          { properties: { title: 'Points'       } },
+          { properties: { title: 'Goals'        } },
+          { properties: { title: 'Settings'     } },
+          { properties: { title: 'Badges'       } },
+        ]
+      }
+    });
+    return resp.result.spreadsheetId;
+  },
+
+  // ── Tab write helper ──────────────────────────────────────────────────────
+
+  async _writeTab(spreadsheetId, tabName, rows) {
+    await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: tabName });
+    if (rows.length === 0) return;
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${tabName}!A1`,
+      valueInputOption: 'RAW',
+      resource: { values: rows }
+    });
+  },
+
+  // ── Per-tab sync ──────────────────────────────────────────────────────────
+
+  async _syncWeighInsTab(id) {
+    const rows = [['Date', 'Weight (lbs)', 'Notes']];
+    Store.getWeighIns().sort((a,b) => a.date.localeCompare(b.date))
+      .forEach(w => rows.push([w.date, w.weight, w.notes || '']));
+    await this._writeTab(id, 'Weigh-ins', rows);
+  },
+
+  async _syncHabitsTab(id) {
+    const dates = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith('bloom_habits_')) dates.push(k.replace('bloom_habits_', ''));
+    }
+    dates.sort();
+    const habitIds = Store.getHabitDefs().map(h => h.id);
+    const rows = [['Date', ...habitIds]];
+    dates.forEach(date => {
+      const checked = Store.getHabits(date);
+      rows.push([date, ...habitIds.map(id => checked[id] ? 'TRUE' : 'FALSE')]);
+    });
+    await this._writeTab(id, 'Daily Habits', rows);
+  },
+
+  async _syncWorkoutsTab(id) {
+    const rows = [['Date', 'Activity', 'Duration (min)', 'Intensity', 'Notes']];
+    Store.getWorkouts().slice().sort((a,b) => a.date.localeCompare(b.date))
+      .forEach(w => rows.push([w.date, w.activity || '', w.duration || '', w.intensity || '', w.notes || '']));
+    await this._writeTab(id, 'Workouts', rows);
+  },
+
+  async _syncPointsTab(id) {
+    const points = Store.getPoints();
+    const rows = [['Date', 'Event', 'Points Earned', 'Running Total', 'Spendable Balance']];
+    let running = 0;
+    (points.history || []).forEach(evt => {
+      running += (evt.amount || 0);
+      rows.push([evt.date || '', evt.reason || '', evt.amount || 0, running, '']);
+    });
+    if (rows.length > 1) rows[rows.length - 1][4] = points.spendable || 0;
+    await this._writeTab(id, 'Points', rows);
+  },
+
+  async _syncGoalsTab(id) {
+    const goals = Store.getGoals();
+    const rows = [['Date Set', 'Goal Name', 'Goal Amount ($)', 'Amount Earned ($)', 'Date Cashed Out', 'Status']];
+    if (goals.name) rows.push([goals.dateSet || '', goals.name, goals.amount || 0, goals.earned || 0, '', 'Active']);
+    (goals.history || []).forEach(g =>
+      rows.push([g.dateSet || '', g.name || '', g.amount || 0, g.earned || 0, g.dateCashedOut || '', 'Cashed out'])
+    );
+    await this._writeTab(id, 'Goals', rows);
+  },
+
+  async _syncSettingsTab(id) {
+    const settings = Store.getSettings();
+    const rows = [['Key', 'Value']];
+    Object.entries(settings).forEach(([k, v]) => rows.push([k, v === null ? '' : String(v)]));
+    rows.push(['_points_json',  JSON.stringify(Store.getPoints())]);
+    rows.push(['_goals_json',   JSON.stringify(Store.getGoals())]);
+    rows.push(['_habitdefs_json', JSON.stringify(Store.getHabitDefs())]);
+    await this._writeTab(id, 'Settings', rows);
+  },
+
+  async _syncBadgesTab(id) {
+    const badges = Store.getBadges();
+    const rows = [['Badge ID', 'Badge Name', 'Date Earned']];
+    Object.entries(badges).forEach(([badgeId, dateEarned]) => {
+      const def = BADGE_DEFINITIONS.find(b => b.id === badgeId);
+      rows.push([badgeId, def ? def.label : badgeId, dateEarned || '']);
+    });
+    await this._writeTab(id, 'Badges', rows);
+  },
+
+  // ── Restore ───────────────────────────────────────────────────────────────
+
+  async restoreAll() {
+    this._restoring = true;
+    try {
+      await this._ensureToken();
+      const id = this.getSheetId();
+
+      // Settings tab first — contains JSON blobs for complex state
+      const settingsResp = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId: id, range: 'Settings!A:B' });
+      const settingsMap = {};
+      (settingsResp.result.values || []).slice(1).forEach(([k, v]) => { if (k) settingsMap[k] = v || ''; });
+
+      // Restore settings object
+      const s = { ...DEFAULT_SETTINGS };
+      Object.keys(DEFAULT_SETTINGS).forEach(k => {
+        if (settingsMap[k] === undefined) return;
+        const v = settingsMap[k];
+        if (v === 'true') s[k] = true;
+        else if (v === 'false') s[k] = false;
+        else if (v !== '' && !isNaN(Number(v)) && typeof DEFAULT_SETTINGS[k] === 'number') s[k] = Number(v);
+        else s[k] = v;
+      });
+      Store.saveSettings(s);
+
+      // Restore complex state from JSON blobs
+      if (settingsMap['_points_json'])    { try { Store.savePoints(JSON.parse(settingsMap['_points_json'])); } catch {} }
+      if (settingsMap['_goals_json'])     { try { Store.saveGoals(JSON.parse(settingsMap['_goals_json'])); } catch {} }
+      if (settingsMap['_habitdefs_json']) { try { Store.set('habit_defs', JSON.parse(settingsMap['_habitdefs_json'])); } catch {} }
+
+      // Weigh-ins
+      const wiResp = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId: id, range: 'Weigh-ins!A:C' });
+      const weighIns = (wiResp.result.values || []).slice(1).filter(r => r[0]).map(r => ({
+        date: r[0], weight: parseFloat(r[1]) || 0, notes: r[2] || ''
+      }));
+      Store.saveWeighIns(weighIns);
+
+      // Habits (per-date)
+      const habResp = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId: id, range: 'Daily Habits' });
+      const habRows = habResp.result.values || [];
+      if (habRows.length > 1) {
+        const habitIds = habRows[0].slice(1);
+        habRows.slice(1).forEach(row => {
+          if (!row[0]) return;
+          const checked = {};
+          habitIds.forEach((hId, i) => { checked[hId] = row[i + 1] === 'TRUE'; });
+          Store.saveHabits(row[0], checked);
+        });
+      }
+
+      // Workouts
+      const woResp = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId: id, range: 'Workouts!A:E' });
+      const workouts = (woResp.result.values || []).slice(1).filter(r => r[0]).map((r, i) => ({
+        id: i + 1, date: r[0], activity: r[1] || '', duration: r[2] ? parseInt(r[2]) : null,
+        intensity: r[3] || '', notes: r[4] || ''
+      }));
+      Store.saveWorkouts(workouts);
+
+      // Badges
+      const badgeResp = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId: id, range: 'Badges!A:C' });
+      const badges = {};
+      (badgeResp.result.values || []).slice(1).filter(r => r[0]).forEach(r => { badges[r[0]] = r[2] || todayStr(); });
+      Store.saveBadges(badges);
+
+      this.setLastSynced(new Date().toISOString());
+    } finally {
+      this._restoring = false;
+    }
+  },
+
+  // ── Named public API (all route through schedule for debouncing) ───────────
+
+  syncWeighIn()  { this.schedule(); },
+  syncHabits()   { this.schedule(); },
+  syncWorkout()  { this.schedule(); },
+  syncPoints()   { this.schedule(); },
+  syncSettings() { this.schedule(); },
+  syncGoal()     { this.schedule(); },
+  syncBadge()    { this.schedule(); },
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  formatLastSynced() {
+    const t = this.getLastSynced();
+    if (!t) return 'Never';
+    const d = new Date(t);
+    const now = new Date();
+    const diffMin = Math.floor((now - d) / 60000);
+    if (diffMin < 1)  return 'Just now';
+    if (diffMin < 60) return `${diffMin} min ago`;
+    if (d.toDateString() === now.toDateString()) return `Today at ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
+    return d.toLocaleDateString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  },
+};
+
+function hasLocalData() {
+  if (Store.getWeighIns().length > 0) return true;
+  if (Store.getWorkouts().length > 0) return true;
+  if (Store.getSettings().name) return true;
+  for (let i = 0; i < localStorage.length; i++) {
+    if (localStorage.key(i).startsWith('bloom_habits_')) return true;
+  }
+  return false;
+}
+
+function showRestorePrompt() {
+  const overlay = document.createElement('div');
+  overlay.id = 'restore-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;gap:16px';
+  overlay.innerHTML = `
+    <div style="font-size:48px;margin-bottom:8px">🌸</div>
+    <h2 style="font-size:22px;font-weight:600;color:var(--text)">Restore your data?</h2>
+    <p style="color:var(--text-muted);font-size:15px;max-width:300px;line-height:1.5">It looks like your local data was cleared. Your Bloom data is backed up to Google Sheets.</p>
+    <button id="restore-btn" class="btn btn-primary" style="width:100%;max-width:300px;margin-top:8px">Restore from Google Sheets</button>
+    <button id="restore-fresh-btn" class="btn btn-outline" style="width:100%;max-width:300px">Start fresh</button>
+  `;
+  document.getElementById('app').appendChild(overlay);
+
+  overlay.querySelector('#restore-btn').addEventListener('click', async () => {
+    const btn = overlay.querySelector('#restore-btn');
+    btn.textContent = 'Restoring…';
+    btn.disabled = true;
+    try {
+      await SheetsSync.restoreAll();
+      overlay.remove();
+      Store.set('onboarding_complete', true);
+      renderToday();
+      showToast('Your data has been restored from Google Sheets.', 'success');
+    } catch(e) {
+      btn.textContent = 'Restore from Google Sheets';
+      btn.disabled = false;
+      showToast('Restore failed. Please check your connection and try again.');
+    }
+  });
+
+  overlay.querySelector('#restore-fresh-btn').addEventListener('click', () => {
+    openConfirm(
+      'Start fresh?',
+      'This will permanently delete your Google Sheets backup. Are you sure?',
+      'Yes, Start Fresh',
+      () => {
+        SheetsSync.disconnect();
+        overlay.remove();
+        openOnboarding();
+      },
+      true
+    );
+  });
+}
+
 function init() {
   // Dismiss splash after a brief moment
   const splash = document.getElementById('splash');
@@ -2396,13 +2908,20 @@ function init() {
   // Render today screen
   renderToday();
 
-  // Onboarding — show once on first open; show hint after it's confirmed closed
-  setTimeout(() => {
+  // Onboarding, restore check, and Sheets init
+  setTimeout(async () => {
+    // If Sheets is connected and local data is gone, offer restore
+    if (SheetsSync.isConnected() && !hasLocalData()) {
+      showRestorePrompt();
+      return;
+    }
     if (Store.get('onboarding_complete')) {
       showHintIfNeeded('today');
     } else {
       openOnboarding();
     }
+    // Kick off Sheets init (validates token, retries queue) after UI settles
+    await SheetsSync.init();
   }, 500);
 
   // Midnight reset check (basic: store last-open date)
