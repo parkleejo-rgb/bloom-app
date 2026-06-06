@@ -2501,7 +2501,7 @@ const SheetsSync = {
     return new Promise((resolve, reject) => {
       const tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email',
+        scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
         callback: async (resp) => {
           if (resp.error) { reject(new Error(resp.error)); return; }
           const tokenData = {
