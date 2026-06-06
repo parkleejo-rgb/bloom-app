@@ -812,9 +812,9 @@ function renderSavingsBar(points, goals, settings) {
   ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
 
   const historyRows = recentEvents.map(h =>
-    `<div class="row" style="font-size:12px;color:var(--text-muted)">
-      <span>${h.date} — ${escHtml(h.reason || '')}</span>
-      <span class="val">+${h.amount} pt${h.amount !== 1 ? 's' : ''}</span>
+    `<div style="display:flex;align-items:baseline;gap:8px;font-size:12px;color:var(--text-muted);padding:2px 0">
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.date} — ${escHtml(h.reason || '')}</span>
+      <span style="white-space:nowrap;font-weight:500;flex-shrink:0">+${h.amount} pt${h.amount !== 1 ? 's' : ''}</span>
     </div>`
   ).join('');
 
@@ -2380,22 +2380,24 @@ const OB_SCREENS = [
   `,
   // Screen 4 — Quick setup
   () => `
-    <div class="ob-screen">
+    (() => {
+      const s = Store.getSettings();
+      return `<div class="ob-screen">
       <h1 class="ob-headline">A few things to get you started.</h1>
       <p class="ob-body">You can update all of these anytime in Settings.</p>
       <div class="form-group">
-        <input class="form-input" id="ob-name" type="text" placeholder="What should we call you?" maxlength="40" autocomplete="off">
+        <input class="form-input" id="ob-name" type="text" placeholder="What should we call you?" maxlength="40" autocomplete="off" value="${escHtml(s.name || '')}">
       </div>
       <div class="form-group">
-        <input class="form-input" id="ob-start-weight" type="number" placeholder="Starting weight (lbs)" step="0.1" min="50">
-        <p class="ob-note">Used to track your progress over time.</p>
+        <input class="form-input" id="ob-start-weight" type="number" placeholder="Starting weight (lbs)" step="0.1" min="50" value="${s.startingWeight || ''}">
+        <p class="ob-note" style="margin-top:8px">Used to track your progress over time.</p>
       </div>
       <div class="form-group">
         <label class="form-label">Goal weight range (lbs)</label>
         <div style="display:flex;gap:8px;align-items:center">
-          <input class="form-input" id="ob-goal-low"  type="number" placeholder="From" step="0.5" style="flex:1">
+          <input class="form-input" id="ob-goal-low"  type="number" placeholder="From" step="0.5" style="flex:1" value="${s.goalWeightLow || ''}">
           <span style="color:var(--text-muted);flex-shrink:0">to</span>
-          <input class="form-input" id="ob-goal-high" type="number" placeholder="To"   step="0.5" style="flex:1">
+          <input class="form-input" id="ob-goal-high" type="number" placeholder="To"   step="0.5" style="flex:1" value="${s.goalWeightHigh || ''}">
         </div>
       </div>
       <div class="toggle-row" style="border:none;padding:0;margin-bottom:16px">
@@ -2404,12 +2406,13 @@ const OB_SCREENS = [
           <div class="toggle-sublabel">Adjusts guidance and messaging throughout the app to reflect breastfeeding.</div>
         </div>
         <label class="toggle" style="flex-shrink:0;margin-left:12px">
-          <input type="checkbox" id="ob-bf">
+          <input type="checkbox" id="ob-bf" ${s.breastfeeding ? 'checked' : ''}>
           <div class="toggle-track"></div>
         </label>
       </div>
       <button class="ob-btn" id="ob-next">Next</button>
-    </div>
+    </div>`;
+    })()
   `,
   // Screen 5 — Done
   () => {
@@ -2455,6 +2458,23 @@ function renderObScreen(n) {
     });
   });
   document.getElementById('ob-skip-goal')?.addEventListener('click', () => renderObScreen(n + 1));
+
+  // Swipe left/right to navigate
+  let touchStartX = 0, touchStartY = 0;
+  container.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  container.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return; // too small or mostly vertical
+    if (dx < 0) {
+      obAdvance(n);           // swipe left → next
+    } else if (n > 0) {
+      renderObScreen(n - 1);  // swipe right → back
+    }
+  }, { passive: true });
 }
 
 function obAdvance(n) {
