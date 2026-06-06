@@ -793,10 +793,24 @@ function renderSavingsBar(points, goals, settings) {
     }
   }
 
-  // Recent points history (last 20 positive events, newest first)
-  const recentEvents = (points.history || [])
-    .filter(h => h.amount > 0)
-    .slice(-20).reverse();
+  // Build net points history — habit check/uncheck pairs cancel out
+  const habitNet = {}; // key: "date|habitLabel" → net amount
+  const otherEvents = [];
+  (points.history || []).forEach(h => {
+    const m = (h.reason || '').match(/^Habit(?:\s+unchecked)?:\s+(.+)$/);
+    if (m) {
+      const key = `${h.date}|${m[1]}`;
+      if (!habitNet[key]) habitNet[key] = { date: h.date, reason: `Habit: ${m[1]}`, amount: 0 };
+      habitNet[key].amount += h.amount;
+    } else if (h.amount > 0) {
+      otherEvents.push(h);
+    }
+  });
+  const recentEvents = [
+    ...Object.values(habitNet).filter(h => h.amount > 0),
+    ...otherEvents,
+  ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
+
   const historyRows = recentEvents.map(h =>
     `<div class="row" style="font-size:12px;color:var(--text-muted)">
       <span>${h.date} — ${escHtml(h.reason || '')}</span>
