@@ -1350,6 +1350,10 @@ function renderSettings() {
         <div class="settings-btn-row" id="s-export">
           <div class="settings-btn-label">Export all data (JSON)</div>
         </div>
+        <div class="settings-btn-row" id="s-import">
+          <div class="settings-btn-label">Import data from backup</div>
+          <div class="settings-btn-desc">Restore a previous JSON export</div>
+        </div>
         <div class="settings-btn-row" id="s-reset">
           <div class="settings-btn-label danger-btn">Reset all data</div>
           <div class="settings-btn-desc">This cannot be undone</div>
@@ -1419,6 +1423,7 @@ function renderSettings() {
   });
 
   screen.querySelector('#s-export')?.addEventListener('click', exportData);
+  screen.querySelector('#s-import')?.addEventListener('click', importData);
   screen.querySelector('#s-reset')?.addEventListener('click', () => {
     const sheetsNote = SheetsSync.isConnected()
       ? ' Note: this will not delete your Google Sheets backup. You can restore your data later.'
@@ -2103,7 +2108,40 @@ function showToast(message, type = '') {
   }, 2000);
 }
 
-/* ─── Data Export ────────────────────────────────────────────────────────── */
+/* ─── Data Export / Import ───────────────────────────────────────────────── */
+
+function importData() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json,.json';
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        const keys = Object.keys(data).filter(k => k.startsWith('bloom_'));
+        if (keys.length === 0) { showToast('No Bloom data found in that file.'); return; }
+        openConfirm(
+          'Import and overwrite?',
+          `This will replace all current data with the backup (${keys.length} items). This cannot be undone.`,
+          'Import',
+          () => {
+            keys.forEach(k => localStorage.setItem(k, data[k]));
+            showToast('Data imported. Reloading…', 'success');
+            setTimeout(() => window.location.reload(), 1200);
+          },
+          true
+        );
+      } catch {
+        showToast('Could not read that file. Make sure it\'s a Bloom JSON export.');
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
 
 function exportData() {
   const data = {};
