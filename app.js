@@ -104,7 +104,7 @@ const BADGE_DEFINITIONS = [
   { id: 'checkins_30',     label: '30 days of check-ins',    icon: '📊',  bonusPoints: 15, group: 'habits'  },
   { id: 'first_cashout',   label: 'First reward cashed out', icon: '🛍️', bonusPoints: 0,  group: 'rewards' },
   { id: 'cashouts_3',      label: '3 rewards cashed out',    icon: '👑',  bonusPoints: 0,  group: 'rewards' },
-  { id: 'pillars_50',      label: 'All pillars 50%+ week',   icon: '🌸',  bonusPoints: 0,  group: 'habits'  },
+  { id: 'pillars_50',      label: 'All domains 50%+ week',   icon: '🌸',  bonusPoints: 0,  group: 'habits'  },
   { id: 'month_strength',  label: 'Month of 3+ strength/wk', icon: '🦋',  bonusPoints: 0,  group: 'fitness' },
 ];
 
@@ -417,6 +417,9 @@ function renderScreen(screen) {
     case 'progress': renderProgress(); break;
     case 'settings': renderSettings(); break;
   }
+  if (['today','week','exercise','progress'].includes(screen)) {
+    showHintIfNeeded(screen);
+  }
 }
 
 /* ─── Header ─────────────────────────────────────────────────────────────── */
@@ -630,7 +633,7 @@ function renderWeek() {
 
   // Pillar bars
   html += `<div class="card">`;
-  html += `<div class="card-title">Weekly Pillar Progress</div>`;
+  html += `<div class="card-title">Weekly Domain Progress</div>`;
   const pillars = ['sleep', 'nutrition', 'movement', 'stress'];
   pillars.forEach(p => {
     const meta  = PILLAR_META[p];
@@ -824,18 +827,18 @@ function getPillarFeedback(pillar, pct, bf) {
   const feedbacks = {
     sleep: {
       high:   "Sleep discipline is on point this week.",
-      mid:    "Sleep pillar is building. The bedtime or caffeine cutoff could push this higher.",
-      low:    "Sleep is your lowest pillar this week. Earlier bedtime or cutting caffeine after 1pm are the highest-leverage changes.",
+      mid:    "Sleep domain is building. The bedtime or caffeine cutoff could push this higher.",
+      low:    "Sleep is your lowest domain this week. Earlier bedtime or cutting caffeine after 1pm are the highest-leverage changes.",
     },
     nutrition: {
       high:   "Solid nutrition week. Protein and whole foods are showing up.",
       mid:    "Nutrition is at halfway. The after-7pm cutoff or protein at breakfast would move this.",
-      low:    "Nutrition pillar is low. Start with protein at breakfast — it sets the tone for the day.",
+      low:    "Nutrition domain is low. Start with protein at breakfast — it sets the tone for the day.",
     },
     movement: {
       high:   "Strong movement week. Strength training is showing up.",
       mid:    "Halfway on movement. One more strength session would push this higher.",
-      low:    "Movement is your lowest pillar this week. Even 20 minutes of weights counts.",
+      low:    "Movement is your lowest domain this week. Even 20 minutes of weights counts.",
     },
     stress: {
       high:   "Recovery is built into your week. That matters.",
@@ -986,7 +989,7 @@ function renderProgress() {
   html += `</div></div>`;
 
   // Habit consistency (last 8 weeks)
-  html += `<div class="screen-section-title">Habit Consistency (8 Weeks)</div>`;
+  html += `<div class="screen-section-title">Domain Consistency (8 Weeks)</div>`;
   html += `<div class="card">`;
   const weeks8 = Array.from({ length: 8 }, (_, i) => {
     const ws = getWeekStart();
@@ -1167,6 +1170,18 @@ function renderSettings() {
     <div class="screen-header"><h2>Settings</h2></div>
 
     <div class="settings-section">
+      <div class="settings-group">
+        <div class="settings-btn-row" id="s-how-bloom-works" style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div class="settings-btn-label" style="font-weight:600">How Bloom works</div>
+            <div class="settings-btn-desc">The domains, the scoring, the evidence</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--text-light);flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <div class="settings-section-title">About You</div>
       <div class="settings-group">
         <div class="settings-row">
@@ -1315,6 +1330,7 @@ function renderSettings() {
     Store.saveSettings(s);
   });
 
+  screen.querySelector('#s-how-bloom-works')?.addEventListener('click', openHowBloomWorks);
   screen.querySelector('#s-set-goal')?.addEventListener('click', openGoalModal);
   screen.querySelector('#s-manual-points')?.addEventListener('click', openManualPointsModal);
   screen.querySelector('#s-habits')?.addEventListener('click', openHabitsCustomizer);
@@ -1628,7 +1644,7 @@ function openIntentionModal(wsStr) {
   openModal(body => {
     body.innerHTML = `
       <div class="modal-title">What's your focus this week?</div>
-      <p class="text-muted text-small mb-16">Pick a pillar to prioritize, or write a short intention.</p>
+      <p class="text-muted text-small mb-16">Pick a domain to prioritize, or write a short intention.</p>
       <div class="pillar-choice-grid">
         ${['sleep','nutrition','movement','stress'].map(p => `
           <button class="pillar-choice-btn" data-pillar="${p}">
@@ -1664,7 +1680,7 @@ function openIntentionModal(wsStr) {
     body.querySelector('#save-intention-btn').addEventListener('click', () => {
       const text = body.querySelector('#intention-text').value.trim();
       if (!selectedPillar && !text) {
-        showToast('Pick a pillar or write an intention');
+        showToast('Pick a domain or write an intention');
         return;
       }
       const i = Store.getWeeklyIntentions();
@@ -1857,7 +1873,7 @@ function renderHabitsCustomizerBody(body) {
             <input class="form-input" id="new-habit-label" type="text" placeholder="e.g. Took vitamins" maxlength="60" autocomplete="off">
           </div>
           <div class="form-group">
-            <label class="form-label">Pillar</label>
+            <label class="form-label">Domain</label>
             <select class="form-input form-select" id="new-habit-pillar">
               ${['sleep','nutrition','movement','stress'].map(p =>
                 `<option value="${p}" ${p === pillar ? 'selected' : ''}>${PILLAR_META[p].label}</option>`
@@ -2047,6 +2063,284 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeModal();
 });
 
+/* ─── First-visit Hints ──────────────────────────────────────────────────── */
+
+const HINTS = {
+  today:    "Tap any habit to check it off and earn points. Tap and hold any item to see the evidence behind it.",
+  week:     "These bars update as you check off habits each day. They reflect your week so far — not how much of the week is left.",
+  exercise: "Log any workout in three taps. Strength sessions are weighted as the priority domain for body composition.",
+  progress: "The trend line matters more than individual weeks — especially postpartum. Focus on the direction, not the number.",
+};
+
+function showHintIfNeeded(screen) {
+  const key = `bloom_hint_${screen}_seen`;
+  if (localStorage.getItem(key)) return;
+  const text = HINTS[screen];
+  if (!text) return;
+
+  const hint = document.createElement('div');
+  hint.className = 'screen-hint';
+  hint.innerHTML = `
+    <span class="screen-hint-text">${text}</span>
+    <button class="screen-hint-close" aria-label="Dismiss">&times;</button>
+  `;
+  hint.querySelector('.screen-hint-close').addEventListener('click', () => {
+    localStorage.setItem(key, '1');
+    hint.remove();
+  });
+
+  const screenEl = document.getElementById(`screen-${screen}`);
+  if (screenEl) screenEl.insertAdjacentElement('afterbegin', hint);
+}
+
+/* ─── How Bloom Works ────────────────────────────────────────────────────── */
+
+function openHowBloomWorks() {
+  openModal(body => {
+    body.innerHTML = `
+      <div class="modal-title">How Bloom works</div>
+
+      <div class="how-section">
+        <div class="how-heading">The daily check-in</div>
+        <p>Open the Today screen and tap habits as you complete them throughout the day. Each check-off earns points immediately. Habits reset at midnight. The goal is to make this a 60-second interaction — not a journaling session.</p>
+      </div>
+
+      <div class="how-section">
+        <div class="how-heading">The four domains</div>
+        <p>Your habits feed into four domains: Sleep, Nutrition, Movement, and Stress & Recovery. These aren't arbitrary categories — they're the four mechanisms the research identifies as most important for postpartum weight loss and wellbeing. Intervening on all four together produces better outcomes than focusing on food and exercise alone.</p>
+      </div>
+
+      <div class="how-section">
+        <div class="how-heading">Understanding your domain bars</div>
+        <p>The domain bars on the This Week screen fill up based on your habit completions for the week so far. They calculate based on days elapsed, not out of seven — so on Tuesday, you're being measured against two days of possible habits, not seven. This means the bars are always an honest reflection of how you're doing, not how incomplete your week looks.</p>
+      </div>
+
+      <div class="how-section">
+        <div class="how-heading">The evidence behind each habit</div>
+        <p>Every habit in the checklist has a one-sentence explanation of the research behind it. Tap and hold any item on the Today screen to read it.</p>
+      </div>
+
+      <div class="how-section">
+        <div class="how-heading">Logging workouts</div>
+        <p>On the Exercise screen, tap "Log a workout" and choose your activity type, duration, and intensity. Nothing beyond activity type is required — on a rushed day it's one tap. Strength training is marked as the priority because resistance training preserves lean muscle mass during weight loss, which protects your metabolic rate postpartum.</p>
+      </div>
+
+      <div class="how-section">
+        <div class="how-heading">Your reward goal</div>
+        <p>Set a specific goal — something you want to earn. Every point converts to $0.50 toward it. When you reach the amount, cash it out and set a new goal. The idea is simple: you commit to not buying that thing until you've earned it. The app is your permission slip.</p>
+      </div>
+
+      <div class="how-section">
+        <div class="how-heading">Reading your progress</div>
+        <p>The weight graph on the Progress screen shows your full history with a smoothed trend line overlaid. The trend line is what matters — individual weeks are noisy, especially postpartum. Milestone markers show your first 5 lbs lost, halfway point, and goal range.</p>
+      </div>
+
+      <div class="how-section">
+        <div class="how-heading">Customizing your habits</div>
+        <p>Everything in Bloom is adjustable. In Settings you can toggle any habit on or off, rename items, add your own custom habits, adjust point values, and edit your activity menu. The app should reflect your life — not the other way around.</p>
+      </div>
+
+      <div class="how-section">
+        <div class="how-heading">Your data</div>
+        <p>All data is stored locally on your device. No account is required and no one can see your information. Use the Export Data option in Settings to back up your data regularly — this protects you if your browser cache is ever cleared.</p>
+      </div>
+
+      <div class="how-section" style="border-bottom:none">
+        <div class="how-heading">A note on postpartum progress</div>
+        <p>Weight loss after having a baby is not linear. Breastfeeding, sleep deprivation, and elevated cortisol all affect the scale in ways that have nothing to do with how well you're doing. The trend line on your weight graph matters. Individual weeks don't. A week where you hit 60% of your domains is a good week.</p>
+      </div>
+    `;
+  });
+}
+
+/* ─── Onboarding ─────────────────────────────────────────────────────────── */
+
+let obScreen = 0;
+
+function openOnboarding() {
+  if (Store.get('onboarding_complete')) return;
+
+  const el = document.createElement('div');
+  el.id = 'onboarding';
+  el.innerHTML = `
+    <button id="ob-skip">Skip</button>
+    <div id="ob-screens"></div>
+    <div id="ob-dots"></div>
+  `;
+  document.getElementById('app').appendChild(el);
+
+  document.getElementById('ob-skip').addEventListener('click', closeOnboarding);
+  renderObScreen(0);
+}
+
+const OB_SCREENS = [
+  // Screen 1 — Welcome
+  () => `
+    <div class="ob-screen">
+      <img src="apple-touch-icon.png" alt="Bloom" class="ob-logo">
+      <h1 class="ob-headline">A wellness tracker that works with postpartum life, not against it.</h1>
+      <p class="ob-body">Built around four domains and daily habits — not calorie counting, not macro tracking.</p>
+      <button class="ob-btn" id="ob-next">Next</button>
+    </div>
+  `,
+  // Screen 2 — How it works
+  () => `
+    <div class="ob-screen">
+      <h1 class="ob-headline">Habits, not numbers.</h1>
+      <p class="ob-body">Bloom tracks the behaviors that research shows actually drive postpartum weight loss and wellbeing — sleep, nutrition, movement, and stress recovery. These are the four domains your daily habits feed into.</p>
+      <p class="ob-body">Research consistently shows that behavior-based approaches outperform calorie and macro tracking for long-term results. They're more sustainable, easier to maintain, and better suited to postpartum life where cognitive load is already high.</p>
+      <div class="ob-domains">
+        <div class="ob-domain ob-domain-sleep">Sleep</div>
+        <div class="ob-domain ob-domain-nutrition">Nutrition</div>
+        <div class="ob-domain ob-domain-movement">Movement</div>
+        <div class="ob-domain ob-domain-stress">Stress &amp; Recovery</div>
+      </div>
+      <button class="ob-btn" id="ob-next">Next</button>
+    </div>
+  `,
+  // Screen 3 — Reward goal
+  () => `
+    <div class="ob-screen">
+      <h1 class="ob-headline">What are you working toward?</h1>
+      <p class="ob-body">Every habit you check off earns points toward a personal reward. Set a goal now or come back to it later.</p>
+      <div class="ob-chips">
+        <button class="ob-chip" data-label="Something to wear">👗 Something to wear</button>
+        <button class="ob-chip" data-label="An experience">✨ An experience</button>
+        <button class="ob-chip" data-label="Something for the home">🏠 Something for the home</button>
+        <button class="ob-chip" data-label="A treat">🌿 A treat</button>
+        <button class="ob-chip" data-label="A savings goal">💰 A savings goal</button>
+        <button class="ob-chip" data-label="">＋ Something else</button>
+      </div>
+      <div class="form-group">
+        <input class="form-input" id="ob-goal-name" type="text" placeholder="Name your goal" maxlength="60" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <input class="form-input" id="ob-goal-amount" type="number" placeholder="How much does it cost? ($)" step="1" min="0">
+      </div>
+      <p class="ob-note">You can change this anytime in Settings.</p>
+      <button class="ob-btn" id="ob-next">Next</button>
+      <button class="ob-skip-step" id="ob-skip-goal">I'll set this later</button>
+    </div>
+  `,
+  // Screen 4 — Quick setup
+  () => `
+    <div class="ob-screen">
+      <h1 class="ob-headline">A few things to get you started.</h1>
+      <p class="ob-body">You can update all of these anytime in Settings.</p>
+      <div class="form-group">
+        <input class="form-input" id="ob-name" type="text" placeholder="What should we call you?" maxlength="40" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <input class="form-input" id="ob-start-weight" type="number" placeholder="Starting weight (lbs)" step="0.1" min="50">
+        <p class="ob-note">Used to track your progress over time.</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Goal weight range (lbs)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="form-input" id="ob-goal-low"  type="number" placeholder="From" step="0.5" style="flex:1">
+          <span style="color:var(--text-muted);flex-shrink:0">to</span>
+          <input class="form-input" id="ob-goal-high" type="number" placeholder="To"   step="0.5" style="flex:1">
+        </div>
+      </div>
+      <div class="toggle-row" style="border:none;padding:0;margin-bottom:16px">
+        <div>
+          <div class="toggle-label">Breastfeeding mode</div>
+          <div class="toggle-sublabel">Adjusts weight loss timelines and plateau messaging to reflect postpartum biology.</div>
+        </div>
+        <label class="toggle" style="flex-shrink:0;margin-left:12px">
+          <input type="checkbox" id="ob-bf">
+          <div class="toggle-track"></div>
+        </label>
+      </div>
+      <button class="ob-btn" id="ob-next">Next</button>
+    </div>
+  `,
+  // Screen 5 — Done
+  () => `
+    <div class="ob-screen">
+      <img src="apple-touch-icon.png" alt="Bloom" class="ob-logo">
+      <h1 class="ob-headline">You're all set.</h1>
+      <p class="ob-body">Check in daily, reflect weekly, and let the consistency do the work. Postpartum progress is not linear — the domains are there to show you the full picture, not just the scale.</p>
+      <button class="ob-btn" id="ob-next">Get started</button>
+    </div>
+  `,
+];
+
+function renderObScreen(n) {
+  obScreen = n;
+  const container = document.getElementById('ob-screens');
+  if (!container) return;
+
+  container.innerHTML = OB_SCREENS[n]();
+  container.style.opacity = '0';
+  requestAnimationFrame(() => { container.style.transition = 'opacity 0.25s'; container.style.opacity = '1'; });
+
+  // Dots
+  const dots = document.getElementById('ob-dots');
+  if (dots) {
+    dots.innerHTML = OB_SCREENS.map((_, i) =>
+      `<div class="ob-dot ${i === n ? 'active' : ''}"></div>`
+    ).join('');
+  }
+
+  // Next button
+  document.getElementById('ob-next')?.addEventListener('click', () => obAdvance(n));
+
+  // Screen 3 chips
+  document.querySelectorAll('.ob-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.getElementById('ob-goal-name').value = chip.dataset.label;
+      document.querySelectorAll('.ob-chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+    });
+  });
+  document.getElementById('ob-skip-goal')?.addEventListener('click', () => renderObScreen(n + 1));
+}
+
+function obAdvance(n) {
+  // Save data from screens 3 and 4
+  if (n === 2) {
+    const name   = document.getElementById('ob-goal-name')?.value.trim();
+    const amount = parseFloat(document.getElementById('ob-goal-amount')?.value);
+    if (name) {
+      const goals = Store.getGoals();
+      goals.name   = name;
+      goals.amount = isNaN(amount) ? 0 : amount;
+      Store.saveGoals(goals);
+    }
+  }
+  if (n === 3) {
+    const s = Store.getSettings();
+    const name   = document.getElementById('ob-name')?.value.trim();
+    const sw     = parseFloat(document.getElementById('ob-start-weight')?.value);
+    const gl     = parseFloat(document.getElementById('ob-goal-low')?.value);
+    const gh     = parseFloat(document.getElementById('ob-goal-high')?.value);
+    const bf     = document.getElementById('ob-bf')?.checked;
+    if (name)   s.name          = name;
+    if (!isNaN(sw)) s.startingWeight = sw;
+    if (!isNaN(gl)) s.goalWeightLow  = gl;
+    if (!isNaN(gh)) s.goalWeightHigh = gh;
+    s.breastfeeding = bf || false;
+    Store.saveSettings(s);
+  }
+
+  if (n >= OB_SCREENS.length - 1) {
+    closeOnboarding();
+  } else {
+    renderObScreen(n + 1);
+  }
+}
+
+function closeOnboarding() {
+  Store.set('onboarding_complete', true);
+  const el = document.getElementById('onboarding');
+  if (el) {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity 0.3s';
+    setTimeout(() => { el.remove(); showHintIfNeeded(currentScreen); }, 300);
+  }
+}
+
 /* ─── Init ───────────────────────────────────────────────────────────────── */
 
 function init() {
@@ -2077,6 +2371,15 @@ function init() {
 
   // Render today screen
   renderToday();
+
+  // Onboarding — show once on first open; show hint after it's confirmed closed
+  setTimeout(() => {
+    if (Store.get('onboarding_complete')) {
+      showHintIfNeeded('today');
+    } else {
+      openOnboarding();
+    }
+  }, 500);
 
   // Midnight reset check (basic: store last-open date)
   const lastOpen = Store.get('last_open_date', null);
