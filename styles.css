@@ -1513,6 +1513,15 @@ textarea.form-input {
   color: var(--text);
 }
 
+/* Breastfeeding rapid loss flag */
+.bf-flag {
+  color: #9A7A30;
+  background: #FDF6E3;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-top: 6px;
+}
+
 /* Average loss stat */
 .avg-loss-stat {
   font-size: 13px;
