@@ -88,6 +88,18 @@ const DEFAULT_ACTIVITIES = [
   { id: 'other',       label: 'Other',              priority: false },
 ];
 
+/* The 6 habits with strongest direct evidence for weight loss */
+const CORE_HABIT_IDS = ['sleep_bed', 'nutr_breakfast', 'nutr_no_eat', 'nutr_lunch', 'nutr_dinner', 'move_strength'];
+
+const CORE_HABIT_PUSHBACK = {
+  nutr_breakfast: "This is one of the highest-leverage habits for appetite control. Are you sure?",
+  nutr_no_eat:    "This habit directly supports your fasting window. Are you sure?",
+  move_strength:  "Strength training protects your metabolic rate during weight loss more than any other exercise. Are you sure?",
+  sleep_bed:      "Earlier bedtime is one of the highest-leverage changes for postpartum cortisol and hunger control. Are you sure?",
+  nutr_lunch:     "Protein and veg forward meals are the backbone of your nutrition approach. Are you sure?",
+  nutr_dinner:    "Ending the day with protein and vegetables supports your fasting window and overnight recovery. Are you sure?",
+};
+
 const BADGE_DEFINITIONS = [
   { id: 'first_weighin',   label: 'First weigh-in',          icon: '⚖️',  bonusPoints: 10, group: 'weight'  },
   { id: 'lost_5',          label: '5 lbs lost',              icon: '🌱',  bonusPoints: 20, group: 'weight'  },
@@ -105,7 +117,14 @@ const BADGE_DEFINITIONS = [
   { id: 'first_cashout',   label: 'First reward cashed out', icon: '🛍️', bonusPoints: 0,  group: 'rewards' },
   { id: 'cashouts_3',      label: '3 rewards cashed out',    icon: '👑',  bonusPoints: 0,  group: 'rewards' },
   { id: 'pillars_50',      label: 'All domains 50%+ week',   icon: '🌸',  bonusPoints: 0,  group: 'habits'  },
-  { id: 'month_strength',  label: 'Month of 3+ strength/wk', icon: '🦋',  bonusPoints: 0,  group: 'fitness' },
+  { id: 'month_strength',  label: 'Month of 3+ strength/wk', icon: '🦋',  bonusPoints: 0,   group: 'fitness' },
+  // Streak badges — earned permanently, never removed on streak break
+  { id: 'streak_7',   label: 'One week',                  icon: '🔥',  bonusPoints: 0,   group: 'streak', streakDays: 7,   note: null },
+  { id: 'streak_21',  label: 'Getting easier',            icon: '🔥',  bonusPoints: 0,   group: 'streak', streakDays: 21,  note: 'Research suggests habits start feeling more automatic around this point.' },
+  { id: 'streak_66',  label: 'This is becoming a habit',  icon: '🔥',  bonusPoints: 0,   group: 'streak', streakDays: 66,  note: '66 days is the research-backed median for habit automaticity.' },
+  { id: 'streak_90',  label: '90 days',                   icon: '🔥',  bonusPoints: 0,   group: 'streak', streakDays: 90,  note: null },
+  { id: 'streak_180', label: 'Built into your life now',  icon: '🔥',  bonusPoints: 0,   group: 'streak', streakDays: 180, note: null },
+  { id: 'streak_365', label: 'A year of showing up',      icon: '🔥',  bonusPoints: 100, group: 'streak', streakDays: 365, note: null },
 ];
 
 // Set your Google Cloud OAuth 2.0 client ID here to enable Sheets backup.
@@ -394,6 +413,132 @@ const Badges = {
   },
 };
 
+/* ─── Streak System ──────────────────────────────────────────────────────── */
+
+const Streak = {
+  getData() {
+    return Store.get('streak', { current: 0, best: 0, graceDaysUsed: {}, graceNoteShownFor: null, brokenNoteShownFor: null, showGraceNote: false, showBrokenNote: false, bestAtBreak: 0 });
+  },
+  saveData(d) { Store.set('streak', d); },
+
+  // True if ≥5 of the (enabled) core habits are checked for that date
+  isStreakDay(date) {
+    const checked    = Store.getHabits(date);
+    const defs       = Store.getHabitDefs();
+    const coreActive = defs.filter(h => CORE_HABIT_IDS.includes(h.id) && h.enabled !== false);
+    const done       = coreActive.filter(h => checked[h.id]).length;
+    return done >= 5;
+  },
+
+  // Recompute streak from scratch (supports retroactive logging)
+  recompute() {
+    const data       = this.getData();
+    const prevCurrent = data.current;
+    const today      = todayStr();
+    const appStart   = Store.getSettings().appStartDate || today;
+
+    // Collect all dates that have habit data
+    const allDates = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith('bloom_habits_')) allDates.push(k.replace('bloom_habits_', ''));
+    }
+    const streakDays = new Set(allDates.filter(d => this.isStreakDay(d)));
+
+    const usedGrace = {}; // weekStart → date of missed day
+    let current = 0;
+
+    // Walk backwards from today
+    const cur = new Date();
+    cur.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 400; i++) {
+      const ds = dateStr(cur);
+      if (ds < appStart) break;
+
+      if (streakDays.has(ds)) {
+        current++;
+      } else if (ds <= today) {
+        const ws = dateStr(getWeekStart(new Date(cur)));
+        if (!usedGrace[ws] && current > 0) {
+          usedGrace[ws] = ds; // consume grace day for this week
+        } else {
+          break;
+        }
+      }
+
+      cur.setDate(cur.getDate() - 1);
+    }
+
+    // Grace day note: if a grace day was used for yesterday
+    const yesterday          = dateStr(new Date(Date.now() - 86400000));
+    const graceWasYesterday  = Object.values(usedGrace).includes(yesterday);
+    const prevGrace          = data.graceDaysUsed || {};
+    const prevGraceYesterday = Object.values(prevGrace).includes(yesterday);
+
+    if (graceWasYesterday && !prevGraceYesterday && data.graceNoteShownFor !== today) {
+      data.graceNoteShownFor = today;
+      data.showGraceNote = true;
+    }
+
+    // Streak broken message: was positive, now zero
+    if (prevCurrent > 0 && current === 0 && data.brokenNoteShownFor !== today) {
+      data.brokenNoteShownFor = today;
+      data.showBrokenNote = true;
+      data.bestAtBreak    = data.best || prevCurrent;
+    }
+
+    data.current       = current;
+    data.best          = Math.max(data.best || 0, current);
+    data.graceDaysUsed = usedGrace;
+
+    this.saveData(data);
+    return data;
+  },
+
+  // Returns how many core habits are done for a given date
+  getCoreProgress(date) {
+    const checked    = Store.getHabits(date || todayStr());
+    const defs       = Store.getHabitDefs();
+    const coreActive = defs.filter(h => CORE_HABIT_IDS.includes(h.id) && h.enabled !== false);
+    const done       = coreActive.filter(h => checked[h.id]).length;
+    return { done, total: coreActive.length };
+  },
+
+  // Check and award streak badges; returns newly earned badge ids
+  checkBadges() {
+    const data   = this.getData();
+    const earned = Store.getBadges();
+    const newly  = [];
+
+    BADGE_DEFINITIONS.filter(b => b.streakDays).forEach(b => {
+      if (!earned[b.id] && data.best >= b.streakDays) {
+        earned[b.id] = todayStr();
+        if (b.bonusPoints > 0) Points.add(b.bonusPoints, `Badge: ${b.label}`);
+        newly.push(b.id);
+      }
+    });
+
+    if (newly.length) Store.saveBadges(earned);
+    return newly;
+  },
+
+  // Show celebration for a streak badge
+  showBadgeCelebration(badgeId) {
+    const def = BADGE_DEFINITIONS.find(b => b.id === badgeId);
+    if (!def) return;
+    const is365   = def.streakDays === 365;
+    const message = def.note
+      ? `${def.label} — ${def.note}`
+      : (is365 ? 'A full year. That\'s extraordinary.' : `You earned the "${def.label}" streak badge!`);
+    celebrate(def.icon + ' ' + def.label, message);
+    if (is365 && typeof confetti !== 'undefined') {
+      const colors = ['#8FAF8A', '#C4938A', '#C4B49A', '#A8C5D6', '#FFFFFF'];
+      setTimeout(() => confetti({ particleCount: 200, spread: 120, origin: { y: 0.3 }, colors }), 200);
+    }
+  },
+};
+
 /* ─── Navigation ─────────────────────────────────────────────────────────── */
 
 let currentScreen = 'today';
@@ -479,44 +624,104 @@ function hideRationale() {
 
 /* ─── TODAY Screen ───────────────────────────────────────────────────────── */
 
+function buildHabitItemHtml(habit, checked, isCore) {
+  const isChecked  = !!checked[habit.id];
+  const extra      = habit.retroactive ? '<span class="text-small text-muted"> (for last night)</span>' : '';
+  const workoutTag = habit.opensWorkout && !habit.priority ? '<span class="habit-badge">Logs workout</span>' : '';
+  const coreDot    = isCore
+    ? '<span class="core-dot core-dot-filled" aria-hidden="true">●</span>'
+    : '<span class="core-dot core-dot-empty"  aria-hidden="true">○</span>';
+  return `
+    <div class="habit-item ${isChecked ? 'checked' : ''}" data-habit="${habit.id}" data-opens-workout="${habit.opensWorkout}" data-priority="${habit.priority}">
+      ${coreDot}
+      <div class="habit-check"></div>
+      <div class="habit-text">${habit.label}${extra}</div>
+      ${workoutTag}
+      <div class="habit-points">${habit.points}pt${habit.points > 1 ? 's' : ''}</div>
+    </div>
+  `;
+}
+
 function renderToday() {
-  const screen = document.getElementById('screen-today');
-  const today  = todayStr();
+  const screen  = document.getElementById('screen-today');
+  const today   = todayStr();
   const checked = Store.getHabits(today);
   const habits  = Store.getHabitDefs().filter(h => h.enabled !== false);
+
+  // Streak + core progress
+  const streakData        = Streak.recompute();
+  const { done: coreDone } = Streak.getCoreProgress(today);
+  const totalDone  = habits.filter(h => checked[h.id]).length;
+  const totalAll   = habits.length;
+  const nowHour    = new Date().getHours();
+  const onTheLine  = nowHour >= 18 && coreDone < 5 && streakData.current > 0;
 
   const pillars = ['sleep', 'nutrition', 'movement', 'stress'];
 
   let html = '';
 
+  // Summary row: total done + streak counter
+  html += `
+    <div class="today-summary-row">
+      <span id="today-habit-count" class="today-habit-count">${totalDone} of ${totalAll} habits done today</span>
+      ${streakData.current > 0
+        ? `<span id="streak-counter" class="streak-counter">🔥 ${streakData.current}-day streak</span>`
+        : `<span id="streak-counter" class="streak-counter" style="display:none"></span>`}
+    </div>
+  `;
+
+  // Grace day note
+  if (streakData.showGraceNote) {
+    html += `<div class="streak-note">Grace day used — streak intact.</div>`;
+    streakData.showGraceNote = false;
+    Streak.saveData(streakData);
+  }
+
+  // Streak broken message
+  if (streakData.showBrokenNote) {
+    html += `<div class="streak-note">Streak reset. Your best was ${streakData.bestAtBreak} days. Build a new one.</div>`;
+    streakData.showBrokenNote = false;
+    Streak.saveData(streakData);
+  }
+
+  // "Streak on the line" banner
+  html += `
+    <div id="streak-on-line-banner" class="streak-on-line" ${onTheLine ? '' : 'style="display:none"'}>
+      Your ${streakData.current}-day streak is on the line today.
+    </div>
+  `;
+
+  // Habit groups per pillar
   pillars.forEach(pillar => {
-    const meta = PILLAR_META[pillar];
+    const meta  = PILLAR_META[pillar];
     const items = habits.filter(h => h.pillar === pillar);
     if (!items.length) return;
+
+    const coreItems  = items.filter(h => CORE_HABIT_IDS.includes(h.id));
+    const bonusItems = items.filter(h => !CORE_HABIT_IDS.includes(h.id));
+    const pillarDone = items.filter(h => checked[h.id]).length;
+    const hasBothSections = coreItems.length > 0 && bonusItems.length > 0;
 
     html += `
       <div class="habit-group">
         <div class="pillar-header">
           <div class="pillar-dot ${meta.dotClass}"></div>
           <div class="pillar-label">${meta.label}</div>
+          <div id="pillar-count-${pillar}" class="pillar-count">${pillarDone} of ${items.length} done</div>
         </div>
     `;
 
-    items.forEach(habit => {
-      const isChecked = !!checked[habit.id];
-      const extra = habit.retroactive ? '<span class="text-small text-muted"> (for last night)</span>' : '';
-      const priorityTag = habit.priority ? '<span class="habit-badge priority">Priority</span>' : '';
-      const workoutTag = habit.opensWorkout && !habit.priority ? '<span class="habit-badge">Logs workout</span>' : '';
+    if (coreItems.length) {
+      html += `<div class="habit-subgroup-label commitments-label">Your commitments</div>`;
+      coreItems.forEach(h => { html += buildHabitItemHtml(h, checked, true); });
+    }
 
-      html += `
-        <div class="habit-item ${isChecked ? 'checked' : ''}" data-habit="${habit.id}" data-opens-workout="${habit.opensWorkout}" data-priority="${habit.priority}">
-          <div class="habit-check"></div>
-          <div class="habit-text">${habit.label}${extra}</div>
-          ${priorityTag}${workoutTag}
-          <div class="habit-points">${habit.points}pt${habit.points > 1 ? 's' : ''}</div>
-        </div>
-      `;
-    });
+    if (bonusItems.length) {
+      if (hasBothSections) {
+        html += `<div class="habit-subgroup-label bonus-label">Bonus</div>`;
+      }
+      bonusItems.forEach(h => { html += buildHabitItemHtml(h, checked, false); });
+    }
 
     html += `</div>`;
   });
@@ -554,6 +759,46 @@ function renderToday() {
   });
 }
 
+function updateStreakDisplay() {
+  const today   = todayStr();
+  const checked = Store.getHabits(today);
+  const habits  = Store.getHabitDefs().filter(h => h.enabled !== false);
+
+  const streakData        = Streak.recompute();
+  const { done: coreDone } = Streak.getCoreProgress(today);
+  const totalDone = habits.filter(h => checked[h.id]).length;
+  const totalAll  = habits.length;
+  const nowHour   = new Date().getHours();
+
+  const countEl = document.getElementById('today-habit-count');
+  if (countEl) countEl.textContent = `${totalDone} of ${totalAll} habits done today`;
+
+  const streakEl = document.getElementById('streak-counter');
+  if (streakEl) {
+    if (streakData.current > 0) {
+      streakEl.textContent = `🔥 ${streakData.current}-day streak`;
+      streakEl.style.display = '';
+    } else {
+      streakEl.style.display = 'none';
+    }
+  }
+
+  const bannerEl = document.getElementById('streak-on-line-banner');
+  if (bannerEl) {
+    const show = nowHour >= 18 && coreDone < 5 && streakData.current > 0;
+    bannerEl.style.display = show ? '' : 'none';
+    if (show) bannerEl.textContent = `Your ${streakData.current}-day streak is on the line today.`;
+  }
+
+  // Update per-pillar counts
+  ['sleep', 'nutrition', 'movement', 'stress'].forEach(pillar => {
+    const items = habits.filter(h => h.pillar === pillar);
+    const done  = items.filter(h => checked[h.id]).length;
+    const el = document.getElementById(`pillar-count-${pillar}`);
+    if (el) el.textContent = `${done} of ${items.length} done`;
+  });
+}
+
 function toggleHabit(item) {
   const today   = todayStr();
   const id      = item.dataset.habit;
@@ -576,6 +821,14 @@ function toggleHabit(item) {
     const newBadges = Badges.check();
     if (newBadges.length) setTimeout(() => Badges.showCelebration(newBadges), 400);
 
+    // Check streak badges
+    const newStreakBadges = Streak.checkBadges();
+    if (newStreakBadges.length) {
+      setTimeout(() => Streak.showBadgeCelebration(newStreakBadges[0]), newBadges.length ? 800 : 400);
+    }
+
+    updateStreakDisplay();
+
     if (habit.opensWorkout) {
       setTimeout(() => openWorkoutModal(habit.priority ? 'strength' : null), 300);
     }
@@ -586,6 +839,7 @@ function toggleHabit(item) {
     item.classList.remove('checked');
     Points.deduct(habit.points, `Habit unchecked: ${habit.label}`);
     updatePointsBadge();
+    updateStreakDisplay();
   }
 }
 
@@ -1925,13 +2179,41 @@ function renderHabitsCustomizerBody(body) {
   html += `<div style="height:16px"></div>`;
   body.innerHTML = html;
 
-  // Toggle on/off
+  // Toggle on/off (core habits get a one-line pushback)
   body.querySelectorAll('.habit-toggle').forEach(toggle => {
     toggle.addEventListener('change', () => {
-      const habits = Store.getHabitDefs();
-      const h = habits.find(x => x.id === toggle.dataset.id);
-      if (h) { h.enabled = toggle.checked; Store.saveHabitDefs(habits); }
-      if (currentScreen === 'today') renderToday();
+      const habits  = Store.getHabitDefs();
+      const h       = habits.find(x => x.id === toggle.dataset.id);
+      if (!h) return;
+
+      const isCore      = CORE_HABIT_IDS.includes(h.id);
+      const isDisabling = !toggle.checked;
+
+      if (isCore && isDisabling) {
+        toggle.checked = true; // revert visually while confirming
+        const pushback = CORE_HABIT_PUSHBACK[h.id] || 'This is a core habit for weight loss. Are you sure?';
+        openModal(b => {
+          b.innerHTML = `
+            <div class="modal-title" style="margin-bottom:12px">Remove core habit?</div>
+            <p style="font-size:14px;color:var(--text-muted);margin-bottom:24px;line-height:1.5">${escHtml(pushback)}</p>
+            <button class="btn btn-outline btn-full" id="core-remove-btn">Remove anyway</button>
+            <button class="btn btn-primary btn-full mt-8" id="core-keep-btn">Keep it</button>
+          `;
+          b.querySelector('#core-remove-btn').addEventListener('click', () => {
+            const habits2 = Store.getHabitDefs();
+            const h2 = habits2.find(x => x.id === toggle.dataset.id);
+            if (h2) { h2.enabled = false; Store.saveHabitDefs(habits2); }
+            if (currentScreen === 'today') renderToday();
+            openModal(renderHabitsCustomizerBody);
+          });
+          b.querySelector('#core-keep-btn').addEventListener('click', () => {
+            openModal(renderHabitsCustomizerBody);
+          });
+        });
+      } else {
+        if (h) { h.enabled = toggle.checked; Store.saveHabitDefs(habits); }
+        if (currentScreen === 'today') renderToday();
+      }
     });
   });
 

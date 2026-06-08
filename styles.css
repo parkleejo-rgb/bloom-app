@@ -1557,6 +1557,81 @@ textarea.form-input {
 .week-note-date { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
 .week-note-text { font-size: 13px; color: var(--text); line-height: 1.5; }
 
+/* ─── Feature: Core Habits + Streak ─────────────────────────────────────── */
+
+/* Today screen summary row */
+.today-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+.today-habit-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.streak-counter {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* Grace day / broken streak notes */
+.streak-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+/* "Streak on the line" banner */
+.streak-on-line {
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+/* Pillar count in header */
+.pillar-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-light);
+  font-weight: 500;
+}
+
+/* Core / Bonus subgroup labels */
+.habit-subgroup-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-light);
+  padding: 6px 0 2px;
+}
+.habit-subgroup-label.commitments-label { color: var(--text-muted); }
+/* No border-top on bonus-label — the last core habit's border-bottom already serves as separator */
+.habit-subgroup-label.bonus-label       { margin-top: 2px; padding-top: 8px; }
+
+/* Core indicator dots (● / ○) to the left of the checkbox */
+.core-dot {
+  font-size: 10px;
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+  line-height: 1;
+}
+.core-dot-filled { color: var(--text-muted); }
+.core-dot-empty  { color: var(--text-light); }
+
 /* Responsive tweak for small screens */
 @media (max-width: 360px) {
   .badges-grid { grid-template-columns: repeat(3, 1fr); }
