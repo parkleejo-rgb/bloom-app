@@ -1293,19 +1293,25 @@ function hideRationale() {
 /* ─── TODAY Screen ───────────────────────────────────────────────────────── */
 
 // Returns number of consecutive days (going back from yesterday) that habit was NOT checked.
-// Returns 0 if checked yesterday (or no data). Caps scan at 60 days.
+// Returns 0 if the app hasn't been running for 7+ days yet (avoids false positives for new users).
+// Caps scan at 60 days.
 function getNeglectedDays(habitId) {
-  const today = todayStr();
+  const settings = Store.getSettings();
+  const appStart = settings.appStartDate || todayStr();
+  const appAgeDays = Math.floor((new Date() - parseDate(appStart)) / 86400000);
+  if (appAgeDays < 7) return 0; // too new to flag anything as neglected
+
   let days = 0;
   for (let i = 1; i <= 60; i++) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const ds = dateStr(d);
+    if (ds < appStart) break; // don't count days before app was started
     const checkedDay = Store.getHabits(ds);
     if (checkedDay[habitId]) return days; // was checked on this day
     days++;
   }
-  return days; // never checked in last 60 days
+  return days;
 }
 
 function buildHabitItemHtml(habit, checked, isCore, bundleEntry, isPromptActive, neglectDays) {
