@@ -20,6 +20,19 @@ const MOTIVATIONAL_MESSAGES = [
   "You're further along than you were yesterday.",
 ];
 
+const MAINTENANCE_MESSAGES = [
+  "Maintenance is an active choice, not a passive state.",
+  "The habits that got you here are the habits that keep you here.",
+  "Consistency looks different now -- less about the scale, more about feeling strong.",
+  "You built this. Keeping it is the same work.",
+  "Small consistent choices compound.",
+  "Rest is part of the work.",
+  "You're doing more than you think.",
+  "Your body is doing a lot right now. Give it what it needs.",
+  "Progress lives in the quiet days too.",
+  "You're building something that lasts.",
+];
+
 const DEFAULT_HABITS = [
   // Sleep  (sleep_outside removed — morning walk now covers circadian benefit in Movement)
   { id: 'sleep_bed',      label: 'In bed by 10:30pm',                          pillar: 'sleep',     weight: 3, points: 2, retroactive: true,  opensWorkout: false, priority: false },
@@ -27,12 +40,12 @@ const DEFAULT_HABITS = [
   { id: 'sleep_caffeine', label: 'No caffeine after 1pm',                      pillar: 'sleep',     weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   // Nutrition — ordered by points desc
   { id: 'nutr_breakfast', label: 'High protein breakfast (30g goal)',          pillar: 'nutrition', weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_fiber',     label: 'Approx 30g of fiber throughout day',         pillar: 'nutrition', weight: 2, points: 2, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_no_eat',    label: 'No eating after 7pm',                        pillar: 'nutrition', weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_no_junk',   label: 'No processed meat or packaged snack foods today', pillar: 'nutrition', weight: 3, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_fiber',     label: 'Approx 25 to 30g fiber throughout day',         pillar: 'nutrition', weight: 2, points: 2, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_no_eat',    label: 'Evening eating cutoff',                      pillar: 'nutrition', weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_no_junk',   label: 'No processed meat today',                    pillar: 'nutrition', weight: 3, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_alcohol',   label: 'Alcohol-free today',                         pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_lunch',     label: 'Protein and veg forward lunch',              pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_dinner',    label: 'Protein and veg forward dinner',             pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_lunch',     label: 'Protein and plants at lunch',                pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_dinner',    label: 'Protein and plants at dinner',               pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_water',     label: 'Drank water first thing this morning',       pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_omega3',    label: 'Took omega-3 supplement',                    pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_vitamins',  label: 'Took prenatal vitamins, mag, vit D',         pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
@@ -45,29 +58,32 @@ const DEFAULT_HABITS = [
   { id: 'stress_outside', label: 'Got outside today (non-workout time)',       pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'stress_me',      label: 'Did one thing just for me',                  pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'stress_task',    label: 'Made progress on one non-baby task',         pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  // Optional habits — off by default
+  { id: 'nutr_enough',    label: 'Ate enough to support energy and recovery',  pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, enabled: false },
 ];
 
 const HABIT_RATIONALE = {
-  sleep_bed:     "Late nights elevate cortisol and disrupt the hormones that regulate hunger — getting to bed earlier is one of the highest-leverage changes for postpartum weight loss.",
-  sleep_wake:    "Consistent wake time is one of the strongest anchors for circadian rhythm stability — it helps your body predict sleep pressure more reliably than bedtime alone.",
-  sleep_caffeine:"Caffeine has a 5–6 hour half-life, meaning an afternoon coffee is still active in your system at bedtime and fragments sleep architecture even if you fall asleep easily.",
-  nutr_breakfast:"A high-protein breakfast reduces hunger hormones for the rest of the day more effectively than the same protein eaten at dinner — front-loading protein is one of the most evidence-backed strategies for appetite control.",
-  nutr_fiber:    "Fiber feeds the gut bacteria that regulate hunger hormones, slows glucose absorption, and reduces overall appetite — most people eat roughly half the recommended daily amount.",
-  nutr_no_eat:   "Late eating is associated with increased fat storage in several studies, likely through circadian disruption of metabolic processes — a consistent eating cutoff also reinforces your natural fasting window.",
-  nutr_no_junk:  "Processed meats are classified as a Group 1 carcinogen by the WHO, and packaged snack foods contain emulsifiers linked to gut microbiome disruption and inflammation — large cohort studies link high UPF consumption to increased cancer risk.",
-  nutr_alcohol:  "Even small amounts of alcohol disrupt sleep architecture, elevate cortisol, and are directly linked to increased breast cancer risk — alcohol-free days have compounding benefits across multiple health outcomes.",
-  nutr_lunch:    "Meals built around protein and fiber slow glucose absorption, extend satiety, and reduce the likelihood of reactive eating later in the afternoon.",
-  nutr_dinner:   "Ending the day with a protein and vegetable-centred meal supports muscle maintenance overnight and keeps blood sugar stable through your fasting window.",
-  nutr_water:    "After hours of sleep without fluids, starting the day with water supports energy, digestion, and helps establish a consistent morning routine.",
-  nutr_omega3:   "Pregnancy and breastfeeding deplete DHA significantly — low omega-3 is linked to postpartum mood issues and systemic inflammation, both of which affect weight loss and recovery.",
-  nutr_vitamins: "Postpartum nutritional depletion is real — magnesium supports sleep and stress regulation, vitamin D deficiency is particularly common postpartum and affects mood and immune function, and prenatal vitamins cover the gaps that breastfeeding creates.",
-  move_strength: "Resistance training preserves lean muscle mass during weight loss, protecting your metabolic rate — postpartum, this matters more than cardio for long-term body composition.",
-  move_other:    "Any movement beyond strength training improves cardiovascular health, mood, and stress regulation — consistency across modalities matters more than intensity.",
-  move_walk:     "A morning walk combines circadian light exposure, gentle movement, and cortisol regulation — morning light specifically anchors your circadian rhythm and improves sleep quality that night, while the movement supports stress recovery.",
-  move_mobility: "Postpartum connective tissue is more vulnerable to injury — consistent mobility work protects your ability to keep exercising, which is the actual goal.",
-  stress_outside:"Even 10 minutes in a natural environment reduces cortisol measurably, independent of exercise — chronic postpartum stress actively impairs fat loss, particularly around the abdomen.",
-  stress_me:     "Postpartum identity preservation — maintaining activities that belong to you, not your role as a mother — is consistently linked to better mental health outcomes and lower chronic stress.",
-  stress_task:   "A sense of agency and accomplishment outside caregiving reduces the psychological load of postpartum life and supports the self-efficacy that sustains healthy habits long-term.",
+  sleep_bed:     "Sleep timing affects circadian rhythm, which regulates hunger hormones and energy metabolism. Research consistently links adequate sleep with better weight management, though the effect size varies between individuals.",
+  sleep_wake:    "Consistent wake time is one of the strongest anchors for circadian rhythm stability. Evidence from sleep research suggests this matters more for sleep quality than bedtime alone, though both contribute.",
+  sleep_caffeine:"Caffeine has a half-life of roughly 5 to 6 hours, meaning afternoon caffeine can still be active at bedtime. A 2013 study found caffeine taken 6 hours before bed reduced sleep by about one hour -- individual sensitivity varies considerably.",
+  nutr_breakfast:"Higher protein intake at breakfast is associated with reduced hunger later in the day in several studies, likely through effects on satiety hormones. Evidence is reasonably strong for appetite regulation, though direct effects on weight loss are moderate.",
+  nutr_fiber:    "Dietary fiber is associated with improved satiety, better blood sugar regulation, and gut health. Evidence for these effects is strong and consistent. Most people consume significantly less than the recommended 25 to 30g per day.",
+  nutr_no_eat:   "Time-restricted eating has some evidence for metabolic benefits, particularly around circadian alignment of food intake. However, randomised trials comparing it to general calorie reduction show mixed results. The main benefit here may be reducing unplanned evening snacking. If you are breastfeeding or genuinely hungry, eating enough always takes priority.",
+  nutr_no_junk:  "Processed meats are classified as Group 1 carcinogens by WHO IARC, meaning there is sufficient evidence of a link to colorectal cancer. This classification reflects strength of evidence, not that the absolute risk is large. Occasional consumption carries low absolute risk; regular daily consumption is what the evidence flags.",
+  nutr_alcohol:  "Alcohol is associated with disrupted sleep architecture even in small amounts, and evidence links regular consumption to increased risk of several cancers including breast cancer. The evidence for sleep disruption is strong. Cancer risk evidence is consistent across large studies, though absolute individual risk depends on many factors.",
+  nutr_lunch:    "Meals centred on protein and vegetables tend to be more satiating and lower in energy density than carbohydrate-centred meals. Evidence for this pattern is consistent across multiple study designs.",
+  nutr_dinner:   "Protein and vegetable-centred meals support satiety and provide nutrient density. Ending the day with this pattern also supports your evening eating cutoff.",
+  nutr_water:    "Starting the day with water supports hydration after overnight fasting and can help establish a consistent morning routine. Evidence for specific weight loss effects is weak -- the main benefit is practical habit anchoring.",
+  nutr_omega3:   "DHA and EPA (omega-3 fatty acids) are depleted during pregnancy and breastfeeding. Evidence supports supplementation for maternal mood and infant neurodevelopment. Direct effects on postpartum weight loss are not well established.",
+  nutr_vitamins: "Pregnancy and breastfeeding increase nutrient demands, and deficiencies in vitamin D, magnesium, and other micronutrients are common postpartum. Supplementation is supported by clinical guidelines for breastfeeding mothers. Evidence for direct weight loss effects is limited -- the benefit is nutritional adequacy during recovery.",
+  nutr_enough:   "Adequate calorie intake is essential for postpartum recovery, breastfeeding, and hormonal health. Restriction below energy needs can impair milk supply, increase fatigue, and disrupt hormonal recovery. This habit is a reminder that nourishment is foundational -- not optional.",
+  move_strength: "Resistance training preserves lean muscle mass during weight loss, which protects resting metabolic rate. Evidence for this is strong and consistent. ACOG recommends at least 150 minutes of moderate aerobic activity weekly postpartum, with strength training as a beneficial addition when tolerated.",
+  move_other:    "Regular movement across different modalities supports cardiovascular health, mood, and stress recovery. Consistency over time matters more than intensity or type for long-term health outcomes.",
+  move_walk:     "Walking combines light movement, morning light exposure, and time outdoors -- all associated with modest benefits for mood, circadian rhythm, and general activity levels. Evidence for each component individually is reasonable.",
+  move_mobility: "Postpartum connective tissue recovery takes time. Regular mobility work supports injury prevention and movement quality. Evidence for specific postpartum benefits is limited but general evidence for flexibility and injury prevention is consistent.",
+  stress_outside:"Time in natural environments is associated with lower self-reported stress and improved mood in several studies. Effect sizes are modest and most studies are observational, but the evidence is reasonably consistent and the cost of the habit is low.",
+  stress_me:     "Postpartum identity preservation -- maintaining activities outside the caregiving role -- is associated with better mental health outcomes in qualitative and longitudinal research. Evidence is primarily from observational studies.",
+  stress_task:   "A sense of agency and accomplishment outside caregiving is associated with lower postpartum distress in observational research. This habit is about psychological recovery, not productivity.",
 };
 
 const PILLAR_META = {
@@ -96,8 +112,8 @@ const CORE_HABIT_PUSHBACK = {
   nutr_no_eat:    "This habit directly supports your fasting window. Are you sure?",
   move_strength:  "Strength training protects your metabolic rate during weight loss more than any other exercise. Are you sure?",
   sleep_bed:      "Earlier bedtime is one of the highest-leverage changes for postpartum cortisol and hunger control. Are you sure?",
-  nutr_lunch:     "Protein and veg forward meals are the backbone of your nutrition approach. Are you sure?",
-  nutr_dinner:    "Ending the day with protein and vegetables supports your fasting window and overnight recovery. Are you sure?",
+  nutr_lunch:     "Protein and plants at lunch is one of the anchors of your nutrition approach. Are you sure?",
+  nutr_dinner:    "Ending the day with protein and plants supports your fasting window and overnight recovery. Are you sure?",
 };
 
 const BADGE_DEFINITIONS = [
@@ -144,6 +160,23 @@ const DEFAULT_SETTINGS = {
   bedtimeTarget: '22:30',
   caffeineCutoff: '13:00',
   pointsConversionRate: 0.50,
+  // Optional features
+  featNotifications: true,
+  featSleepTracking: true,
+  featMoodLog: false,
+  featProgressPhotos: false,
+  featMeasurements: false,
+  // Notification toggles
+  notifStreakProtection: false,
+  notifWeighIn: false,
+  notifBedtime: false,
+  notifMorningCheckin: false,
+  notifMorningTime: '08:00',
+  // Measurement setup
+  trackedMeasurements: ['waist', 'hips'],
+  measurementsSetupDone: false,
+  // Mode
+  mode: 'weight_loss', // 'weight_loss' | 'maintenance'
 };
 
 /* ─── Storage Layer ──────────────────────────────────────────────────────── */
@@ -172,6 +205,18 @@ const Store = {
   getWorkouts()        { return this.get('workouts', []); },
   saveWorkouts(a)      { this.set('workouts', a); SheetsSync.schedule(); },
 
+  getSleepLogs()       { return this.get('sleep_logs', []); },
+  saveSleepLogs(a)     { this.set('sleep_logs', a); },
+
+  getMoodLogs()        { return this.get('mood_logs', []); },
+  saveMoodLogs(a)      { this.set('mood_logs', a); },
+
+  getProgressPhotos()  { return this.get('progress_photos', []); },
+  saveProgressPhotos(a){ this.set('progress_photos', a); },
+
+  getMeasurements()    { return this.get('measurements', []); },
+  saveMeasurements(a)  { this.set('measurements', a); },
+
   getPoints()          { return this.get('points', { total_earned: 0, spendable: 0, history: [] }); },
   savePoints(p)        { this.set('points', p); SheetsSync.schedule(); },
 
@@ -193,9 +238,11 @@ const Store = {
 
     const LABEL_MIGRATIONS = [
       { id: 'nutr_breakfast', newPoints: 2 },
-      { id: 'nutr_fiber',     oldLabels: ['Had a high-fiber food today'],                                         newLabel: 'Approx 30g of fiber throughout day', newPoints: 2 },
-      { id: 'nutr_no_eat',    newPoints: 2 },
-      { id: 'nutr_no_junk',   oldLabels: ['Avoided ultra-processed snacks','No processed meats or packaged snack foods'], newLabel: 'No processed meat or packaged snack foods today' },
+      { id: 'nutr_fiber',     oldLabels: ['Had a high-fiber food today', 'Approx 30g of fiber throughout day'],    newLabel: 'Approx 25 to 30g fiber throughout day', newPoints: 2 },
+      { id: 'nutr_no_eat',    oldLabels: ['No eating after', 'Evening eating cutoff ('],                          newLabel: 'Evening eating cutoff', newPoints: 2 },
+      { id: 'nutr_no_junk',   oldLabels: ['Avoided ultra-processed snacks','No processed meats or packaged snack foods','No processed meat or packaged snack foods today'], newLabel: 'No processed meat today' },
+      { id: 'nutr_lunch',     oldLabels: ['Protein and veg forward at lunch', 'Protein and vegetables at lunch'],  newLabel: 'Protein and plants at lunch' },
+      { id: 'nutr_dinner',    oldLabels: ['Protein and veg forward at dinner', 'Protein and vegetables at dinner'], newLabel: 'Protein and plants at dinner' },
       // move_walk: alsoContributes changed from stress → sleep
       { id: 'move_walk',      newAlso: 'sleep', newAlsoWeight: 1 },
     ];
@@ -1253,7 +1300,9 @@ function updateHeader() {
 
 function getDailyMessage() {
   const day = new Date().getDate();
-  return MOTIVATIONAL_MESSAGES[day % MOTIVATIONAL_MESSAGES.length];
+  const s = Store.getSettings();
+  const pool = s.mode === 'maintenance' ? MAINTENANCE_MESSAGES : MOTIVATIONAL_MESSAGES;
+  return pool[day % pool.length];
 }
 
 function updatePointsBadge() {
@@ -1288,6 +1337,667 @@ function hideRationale() {
   document.getElementById('rationale-card')?.classList.add('hidden');
   rationaleVisible = false;
   clearTimeout(rationaleTimer);
+}
+
+/* ─── Notifications Module ────────────────────────────────────────────────── */
+
+const Notifications = {
+  async requestPermission() {
+    if (!('Notification' in window)) return 'unsupported';
+    if (Notification.permission === 'granted') return 'granted';
+    const result = await Notification.requestPermission();
+    return result;
+  },
+
+  isBlocked() {
+    return 'Notification' in window && Notification.permission === 'denied';
+  },
+
+  async show(title, body) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready.catch(() => null);
+      if (reg) { reg.showNotification(title, { body, icon: './apple-touch-icon.png', badge: './apple-touch-icon.png' }); return; }
+    }
+    new Notification(title, { body, icon: './apple-touch-icon.png' });
+  },
+
+  // Called on app open and visibility change — fires any pending notifications for today
+  checkPending() {
+    const s = Store.getSettings();
+    if (!s.featNotifications) return;
+    const now   = new Date();
+    const hour  = now.getHours();
+    const min   = now.getMinutes();
+    const today = todayStr();
+    const fired = Store.get('notif_fired_' + today, {});
+
+    // Streak protection — 7pm
+    if (s.notifStreakProtection && !fired.streakProtection && hour >= 19) {
+      const streak = Streak.recompute();
+      if (streak.current > 0) {
+        const { done: coreDone } = Streak.getCoreProgress(today);
+        if (coreDone < 5) {
+          this.show('Bloom', `Your ${streak.current}-day streak is on the line. You've got time.`);
+          fired.streakProtection = true;
+        }
+      }
+    }
+
+    // Weigh-in reminder — Sunday 9am
+    if (s.notifWeighIn && !fired.weighIn && now.getDay() === 0 && hour >= 9) {
+      const ws  = dateStr(getWeekStart());
+      const has = Store.getWeighIns().some(w => w.date >= ws);
+      if (!has) {
+        this.show('Bloom', "Weekly weigh-in -- log it while you're thinking about it.");
+        fired.weighIn = true;
+      }
+    }
+
+    // Bedtime nudge — 10pm
+    if (s.notifBedtime && !fired.bedtime && hour >= 22) {
+      const checked = Store.getHabits(today);
+      if (!checked['sleep_bed']) {
+        this.show('Bloom', "Bedtime habit -- 30 minutes to your target.");
+        fired.bedtime = true;
+      }
+    }
+
+    // Morning check-in — user-set time
+    if (s.notifMorningCheckin && !fired.morningCheckin && s.notifMorningTime) {
+      const [th, tm] = s.notifMorningTime.split(':').map(Number);
+      if (hour > th || (hour === th && min >= tm)) {
+        this.show('Bloom', "How's your morning going? Log your habits.");
+        fired.morningCheckin = true;
+      }
+    }
+
+    if (Object.keys(fired).length) Store.set('notif_fired_' + today, fired);
+  },
+};
+
+/* ─── Sleep Tracking (Feature 2) ─────────────────────────────────────────── */
+
+function calcSleepHours(sleepTime, wakeTime) {
+  if (!sleepTime || !wakeTime) return null;
+  const [sh, sm] = sleepTime.split(':').map(Number);
+  const [wh, wm] = wakeTime.split(':').map(Number);
+  let sleepMins = sh * 60 + sm;
+  let wakeMins  = wh * 60 + wm;
+  if (wakeMins <= sleepMins) wakeMins += 24 * 60; // crossed midnight
+  return (wakeMins - sleepMins) / 60;
+}
+
+function fmtSleepHours(hrs) {
+  if (hrs === null) return '--';
+  const h = Math.floor(hrs);
+  const m = Math.round((hrs - h) * 60);
+  return m > 0 ? `${h} hrs ${m} min` : `${h} hrs`;
+}
+
+function renderSleepCard() {
+  const s     = Store.getSettings();
+  if (!s.featSleepTracking) return '';
+  const now   = new Date();
+  if (now.getHours() >= 12) return ''; // only show in the morning
+  const today = todayStr();
+  const logs  = Store.getSleepLogs();
+  const entry = logs.find(l => l.date === today);
+
+  // Default sleep time = 30 min after bedtime target
+  const [bh, bm] = (s.bedtimeTarget || '22:30').split(':').map(Number);
+  const sleepDefault = `${String(bh).padStart(2,'0')}:${String((bm + 30) % 60).padStart(2,'0')}`;
+  const wakeDefault  = s.usualWakeTime || '07:00';
+
+  if (entry) {
+    const hrs = calcSleepHours(entry.sleepTime, entry.wakeTime);
+    return `
+      <div class="today-optional-card" id="sleep-card">
+        <div class="today-optional-label">last night's sleep</div>
+        <div class="sleep-logged-row" id="sleep-logged-summary">
+          <span class="sleep-logged-text">Last night: ${fmtSleepHours(hrs)}</span>
+          <button class="btn-text-link" id="sleep-edit-btn">Edit</button>
+        </div>
+        <div class="sleep-inputs hidden" id="sleep-inputs">
+          <div class="sleep-input-row">
+            <label class="sleep-input-label">Fell asleep around:</label>
+            <input type="time" class="settings-row-input" id="sleep-time-input" value="${entry.sleepTime}">
+          </div>
+          <div class="sleep-input-row">
+            <label class="sleep-input-label">Woke up around:</label>
+            <input type="time" class="settings-row-input" id="wake-time-input" value="${entry.wakeTime}">
+          </div>
+          <button class="btn btn-sm btn-primary" id="sleep-save-btn" style="margin-top:8px">Save</button>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="today-optional-card" id="sleep-card">
+      <div class="today-optional-label">last night's sleep</div>
+      <div class="sleep-input-row">
+        <label class="sleep-input-label">Fell asleep around:</label>
+        <input type="time" class="settings-row-input" id="sleep-time-input" value="${sleepDefault}">
+      </div>
+      <div class="sleep-input-row">
+        <label class="sleep-input-label">Woke up around:</label>
+        <input type="time" class="settings-row-input" id="wake-time-input" value="${wakeDefault}">
+      </div>
+      <button class="btn btn-sm btn-primary" id="sleep-log-btn" style="margin-top:8px">Log sleep</button>
+    </div>`;
+}
+
+function bindSleepCard(screen) {
+  const today = todayStr();
+
+  screen.querySelector('#sleep-log-btn')?.addEventListener('click', () => {
+    const st = screen.querySelector('#sleep-time-input')?.value;
+    const wt = screen.querySelector('#wake-time-input')?.value;
+    if (!st || !wt) return;
+    const logs = Store.getSleepLogs().filter(l => l.date !== today);
+    logs.push({ date: today, sleepTime: st, wakeTime: wt });
+    Store.saveSleepLogs(logs);
+    Points.add(1, 'Sleep logged');
+    updatePointsBadge();
+    showToast('+1 pt', 'success');
+    refreshTodayOptionalCards(screen);
+  });
+
+  screen.querySelector('#sleep-edit-btn')?.addEventListener('click', () => {
+    screen.querySelector('#sleep-logged-summary')?.classList.add('hidden');
+    screen.querySelector('#sleep-inputs')?.classList.remove('hidden');
+  });
+
+  screen.querySelector('#sleep-save-btn')?.addEventListener('click', () => {
+    const st = screen.querySelector('#sleep-time-input')?.value;
+    const wt = screen.querySelector('#wake-time-input')?.value;
+    if (!st || !wt) return;
+    const logs = Store.getSleepLogs().filter(l => l.date !== today);
+    logs.push({ date: today, sleepTime: st, wakeTime: wt });
+    Store.saveSleepLogs(logs);
+    showToast('Saved');
+    refreshTodayOptionalCards(screen);
+  });
+}
+
+/* ─── Mood / Energy / Motivation Log (Feature 3) ─────────────────────────── */
+
+function renderMoodCard() {
+  const s = Store.getSettings();
+  if (!s.featMoodLog) return '';
+  const today = todayStr();
+  const logs  = Store.getMoodLogs();
+  const entry = logs.find(l => l.date === today);
+
+  if (entry) {
+    return `
+      <div class="today-optional-card" id="mood-card">
+        <div class="today-optional-label">daily check-in</div>
+        <div class="mood-logged-row">
+          <span class="mood-logged-text">Mood ${entry.mood} &nbsp;·&nbsp; Energy ${entry.energy} &nbsp;·&nbsp; Motivation ${entry.motivation}</span>
+          <button class="btn-text-link" id="mood-edit-btn">Edit</button>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="today-optional-card" id="mood-card">
+      <div class="today-optional-label">daily check-in</div>
+      <div class="mood-slider-group">
+        <div class="mood-slider-row">
+          <div class="mood-slider-labels">
+            <span class="mood-slider-name">Mood today</span>
+            <span class="mood-slider-val" id="mood-val">5</span>
+          </div>
+          <input type="range" min="0" max="10" value="5" class="mood-range" id="mood-input">
+          <div class="mood-anchors"><span>No positive emotions</span><span>Genuinely happy</span></div>
+        </div>
+        <div class="mood-slider-row">
+          <div class="mood-slider-labels">
+            <span class="mood-slider-name">Energy today</span>
+            <span class="mood-slider-val" id="energy-val">5</span>
+          </div>
+          <input type="range" min="0" max="10" value="5" class="mood-range" id="energy-input">
+          <div class="mood-anchors"><span>Completely exhausted</span><span>Fully energized</span></div>
+        </div>
+        <div class="mood-slider-row">
+          <div class="mood-slider-labels">
+            <span class="mood-slider-name">Motivation for health goals today</span>
+            <span class="mood-slider-val" id="motivation-val">5</span>
+          </div>
+          <input type="range" min="0" max="10" value="5" class="mood-range" id="motivation-input">
+          <div class="mood-anchors"><span>Couldn't act on goals</span><span>Felt driven</span></div>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-primary" id="mood-log-btn" style="margin-top:12px">Log</button>
+    </div>`;
+}
+
+function bindMoodCard(screen) {
+  const today = todayStr();
+
+  ['mood', 'energy', 'motivation'].forEach(key => {
+    const input = screen.querySelector(`#${key}-input`);
+    const val   = screen.querySelector(`#${key}-val`);
+    if (input && val) input.addEventListener('input', () => { val.textContent = input.value; });
+  });
+
+  screen.querySelector('#mood-log-btn')?.addEventListener('click', () => {
+    const mood       = parseInt(screen.querySelector('#mood-input')?.value || 5);
+    const energy     = parseInt(screen.querySelector('#energy-input')?.value || 5);
+    const motivation = parseInt(screen.querySelector('#motivation-input')?.value || 5);
+    const logs = Store.getMoodLogs().filter(l => l.date !== today);
+    logs.push({ date: today, mood, energy, motivation, notes: [] });
+    Store.saveMoodLogs(logs);
+    Points.add(2, 'Check-in logged');
+    updatePointsBadge();
+    showToast('+2 pts', 'success');
+    refreshTodayOptionalCards(screen);
+    // MI follow-up prompts
+    setTimeout(() => {
+      if (mood < 5 || energy < 5) {
+        const low  = mood < energy ? { name: 'mood', val: mood } : { name: 'energy', val: energy };
+        openMIPrompt(low.name, low.val, motivation);
+      } else if (motivation < 5) {
+        openMIPrompt('motivation', motivation, null);
+      }
+    }, 400);
+  });
+
+  screen.querySelector('#mood-edit-btn')?.addEventListener('click', () => {
+    const logs  = Store.getMoodLogs();
+    const entry = logs.find(l => l.date === today);
+    if (!entry) return;
+    // Re-render card in edit mode
+    const card = screen.querySelector('#mood-card');
+    if (!card) return;
+    card.innerHTML = `
+      <div class="today-optional-label">daily check-in</div>
+      <div class="mood-slider-group">
+        <div class="mood-slider-row">
+          <div class="mood-slider-labels"><span class="mood-slider-name">Mood today</span><span class="mood-slider-val" id="mood-val">${entry.mood}</span></div>
+          <input type="range" min="0" max="10" value="${entry.mood}" class="mood-range" id="mood-input">
+          <div class="mood-anchors"><span>No positive emotions</span><span>Genuinely happy</span></div>
+        </div>
+        <div class="mood-slider-row">
+          <div class="mood-slider-labels"><span class="mood-slider-name">Energy today</span><span class="mood-slider-val" id="energy-val">${entry.energy}</span></div>
+          <input type="range" min="0" max="10" value="${entry.energy}" class="mood-range" id="energy-input">
+          <div class="mood-anchors"><span>Completely exhausted</span><span>Fully energized</span></div>
+        </div>
+        <div class="mood-slider-row">
+          <div class="mood-slider-labels"><span class="mood-slider-name">Motivation for health goals today</span><span class="mood-slider-val" id="motivation-val">${entry.motivation}</span></div>
+          <input type="range" min="0" max="10" value="${entry.motivation}" class="mood-range" id="motivation-input">
+          <div class="mood-anchors"><span>Couldn't act on goals</span><span>Felt driven</span></div>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-primary" id="mood-save-edit-btn" style="margin-top:12px">Save</button>
+    `;
+    ['mood', 'energy', 'motivation'].forEach(key => {
+      const inp = card.querySelector(`#${key}-input`);
+      const vl  = card.querySelector(`#${key}-val`);
+      if (inp && vl) inp.addEventListener('input', () => { vl.textContent = inp.value; });
+    });
+    card.querySelector('#mood-save-edit-btn')?.addEventListener('click', () => {
+      const mood       = parseInt(card.querySelector('#mood-input')?.value || 5);
+      const energy     = parseInt(card.querySelector('#energy-input')?.value || 5);
+      const motivation = parseInt(card.querySelector('#motivation-input')?.value || 5);
+      const ls = Store.getMoodLogs().filter(l => l.date !== today);
+      ls.push({ date: today, mood, energy, motivation, notes: entry.notes || [] });
+      Store.saveMoodLogs(ls);
+      showToast('Saved');
+      refreshTodayOptionalCards(screen);
+    });
+  });
+}
+
+function openMIPrompt(dimension, value, motivationValue) {
+  openModal(body => {
+    const isMotivation = dimension === 'motivation';
+    const q1 = isMotivation
+      ? `What's keeping your motivation at ${value} and not lower?`
+      : `You rated ${dimension} a ${value}. What would need to change to get to ${value + 2}?`;
+    body.innerHTML = `
+      <div class="modal-title">One quick question</div>
+      <p class="modal-desc" style="margin-bottom:14px">${escHtml(q1)}</p>
+      <textarea id="mi-response-1" class="mi-textarea" rows="3" placeholder="Type here, or skip..."></textarea>
+      <button class="btn btn-sm" id="mi-voice-btn" style="margin-top:6px;margin-bottom:2px;display:flex;align-items:center;gap:6px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        Use voice
+      </button>
+      <div style="display:flex;justify-content:space-between;margin-top:12px">
+        <button class="btn btn-sm btn-outline" id="mi-skip-btn">Skip</button>
+        <button class="btn btn-sm btn-primary" id="mi-next-btn">${isMotivation ? 'Next' : 'Done'}</button>
+      </div>`;
+
+    body.querySelector('#mi-voice-btn')?.addEventListener('click', () => startVoiceInput(body.querySelector('#mi-response-1')));
+    body.querySelector('#mi-skip-btn')?.addEventListener('click', closeModal);
+    body.querySelector('#mi-next-btn')?.addEventListener('click', () => {
+      const resp1 = body.querySelector('#mi-response-1')?.value || '';
+      if (isMotivation && resp1.trim()) {
+        // Second question
+        const q2 = `What would need to change to get to ${value + 2}?`;
+        body.innerHTML = `
+          <div class="modal-title">One more question</div>
+          <p class="modal-desc" style="margin-bottom:14px">${escHtml(q2)}</p>
+          <textarea id="mi-response-2" class="mi-textarea" rows="3" placeholder="Type here, or skip..."></textarea>
+          <button class="btn btn-sm" id="mi-voice-btn-2" style="margin-top:6px;margin-bottom:2px;display:flex;align-items:center;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            Use voice
+          </button>
+          <div style="display:flex;justify-content:space-between;margin-top:12px">
+            <button class="btn btn-sm btn-outline" id="mi-skip-2-btn">Skip</button>
+            <button class="btn btn-sm btn-primary" id="mi-done-btn">Done</button>
+          </div>`;
+        body.querySelector('#mi-voice-btn-2')?.addEventListener('click', () => startVoiceInput(body.querySelector('#mi-response-2')));
+        body.querySelector('#mi-skip-2-btn')?.addEventListener('click', closeModal);
+        body.querySelector('#mi-done-btn')?.addEventListener('click', () => {
+          const resp2 = body.querySelector('#mi-response-2')?.value || '';
+          saveMINote([resp1, resp2].filter(Boolean));
+          closeModal();
+        });
+      } else {
+        if (resp1.trim()) saveMINote([resp1]);
+        closeModal();
+      }
+    });
+  });
+}
+
+function saveMINote(responses) {
+  const today = todayStr();
+  const logs  = Store.getMoodLogs();
+  const idx   = logs.findIndex(l => l.date === today);
+  if (idx === -1) return;
+  logs[idx].notes = [...(logs[idx].notes || []), ...responses];
+  Store.saveMoodLogs(logs);
+}
+
+/* ─── Progress Photos (Feature 4) ────────────────────────────────────────── */
+
+function isFirstOfMonth() {
+  return new Date().getDate() === 1;
+}
+
+function renderPhotoPromptCard() {
+  const s = Store.getSettings();
+  if (!s.featProgressPhotos) return '';
+  const today    = todayStr();
+  const month    = today.slice(0, 7); // YYYY-MM
+  const photos   = Store.getProgressPhotos();
+  const hasPhoto = photos.some(p => p.date.startsWith(month));
+  const dismissed = Store.get('photo_prompt_dismissed_' + month, false);
+  if (hasPhoto || dismissed || !isFirstOfMonth()) return '';
+
+  return `
+    <div class="today-optional-card" id="photo-prompt-card">
+      <div class="today-optional-label">monthly progress</div>
+      <p class="optional-card-text">Time for your monthly progress photo.</p>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+        <button class="btn btn-sm btn-primary" id="photo-take-btn">Take photo</button>
+        <button class="btn-text-link" id="photo-skip-btn">Skip this month</button>
+      </div>
+    </div>`;
+}
+
+function bindPhotoPromptCard(screen) {
+  const month = todayStr().slice(0, 7);
+
+  screen.querySelector('#photo-take-btn')?.addEventListener('click', () => {
+    openPhotoCapture();
+  });
+
+  screen.querySelector('#photo-skip-btn')?.addEventListener('click', () => {
+    Store.set('photo_prompt_dismissed_' + month, true);
+    refreshTodayOptionalCards(screen);
+  });
+}
+
+function openPhotoCapture() {
+  const s        = Store.getSettings();
+  const hasSeenDirections = Store.get('photo_directions_seen', false);
+
+  const showCamera = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'user';
+    input.onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        compressPhoto(ev.target.result, dataUrl => {
+          const today  = todayStr();
+          const month  = today.slice(0, 7);
+          const photos = Store.getProgressPhotos().filter(p => !p.date.startsWith(month));
+          photos.push({ date: today, dataUrl });
+          Store.saveProgressPhotos(photos);
+          showToast('Saved. See it in Progress.', 'success');
+          const screen = document.getElementById('screen-today');
+          refreshTodayOptionalCards(screen);
+        });
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  if (!hasSeenDirections) {
+    openModal(body => {
+      body.innerHTML = `
+        <div class="modal-title">For photos you can actually compare</div>
+        <ul class="photo-directions-list">
+          <li>Stand against the same plain wall each time</li>
+          <li>Same distance from the camera</li>
+          <li>Morning, before eating, is most consistent</li>
+          <li>Same or similar clothing</li>
+        </ul>
+        <button class="btn btn-primary" id="photo-directions-ok" style="margin-top:16px;width:100%">Got it</button>`;
+      body.querySelector('#photo-directions-ok')?.addEventListener('click', () => {
+        Store.set('photo_directions_seen', true);
+        closeModal();
+        showCamera();
+      });
+    });
+  } else {
+    showCamera();
+  }
+}
+
+function compressPhoto(dataUrl, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const MAX = 800;
+    let w = img.width, h = img.height;
+    if (w > MAX || h > MAX) {
+      if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+      else       { w = Math.round(w * MAX / h); h = MAX; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    cb(canvas.toDataURL('image/jpeg', 0.75));
+  };
+  img.src = dataUrl;
+}
+
+/* ─── Measurement Tracking (Feature 5) ────────────────────────────────────── */
+
+const MEASUREMENT_POINTS = [
+  { id: 'waist',      label: 'Waist',       cx: 150, cy: 200 },
+  { id: 'hips',       label: 'Hips',        cx: 150, cy: 240 },
+  { id: 'chest',      label: 'Chest',       cx: 150, cy: 155 },
+  { id: 'leftArm',    label: 'Left arm',    cx: 105, cy: 170 },
+  { id: 'rightArm',   label: 'Right arm',   cx: 195, cy: 170 },
+  { id: 'leftThigh',  label: 'Left thigh',  cx: 120, cy: 295 },
+  { id: 'rightThigh', label: 'Right thigh', cx: 180, cy: 295 },
+];
+
+function renderMeasurementPromptCard() {
+  const s = Store.getSettings();
+  if (!s.featMeasurements) return '';
+  const today        = todayStr();
+  const month        = today.slice(0, 7);
+  const measurements = Store.getMeasurements();
+  const hasMeasure   = measurements.some(m => m.date.startsWith(month));
+  const dismissed    = Store.get('measure_prompt_dismissed_' + month, false);
+  if (hasMeasure || dismissed || !isFirstOfMonth()) return '';
+
+  return `
+    <div class="today-optional-card" id="measure-prompt-card">
+      <div class="today-optional-label">monthly measurements</div>
+      <p class="optional-card-text">Time for monthly measurements.</p>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+        <button class="btn btn-sm btn-primary" id="measure-log-btn">Log measurements</button>
+        <button class="btn-text-link" id="measure-skip-btn">Skip this month</button>
+      </div>
+    </div>`;
+}
+
+function bindMeasurementPromptCard(screen) {
+  const month = todayStr().slice(0, 7);
+
+  screen.querySelector('#measure-log-btn')?.addEventListener('click', () => {
+    openMeasurementModal();
+  });
+
+  screen.querySelector('#measure-skip-btn')?.addEventListener('click', () => {
+    Store.set('measure_prompt_dismissed_' + month, true);
+    refreshTodayOptionalCards(screen);
+  });
+}
+
+function openMeasurementModal() {
+  const s = Store.getSettings();
+  if (!s.measurementsSetupDone) {
+    openMeasurementSetup(() => openMeasurementModal());
+    return;
+  }
+
+  const hasSeenInstructions = Store.get('measure_instructions_seen', false);
+  const showForm = () => openModal(renderMeasurementForm);
+
+  if (!hasSeenInstructions) {
+    openModal(body => {
+      body.innerHTML = `
+        <div class="modal-title">For consistent measurements</div>
+        <ul class="photo-directions-list">
+          <li>Measure at the same time of day (morning is most consistent)</li>
+          <li>Stand naturally, don't flex or hold your breath</li>
+          <li>Measure at the same point each time (e.g. narrowest point for waist)</li>
+        </ul>
+        <button class="btn btn-primary" id="measure-instructions-ok" style="margin-top:16px;width:100%">Got it</button>`;
+      body.querySelector('#measure-instructions-ok')?.addEventListener('click', () => {
+        Store.set('measure_instructions_seen', true);
+        closeModal();
+        showForm();
+      });
+    });
+  } else {
+    showForm();
+  }
+}
+
+function openMeasurementSetup(onDone) {
+  openModal(body => {
+    const all = MEASUREMENT_POINTS;
+    const s   = Store.getSettings();
+    const tracked = s.trackedMeasurements || ['waist', 'hips'];
+    body.innerHTML = `
+      <div class="modal-title">Which measurements to track?</div>
+      <p class="modal-desc" style="margin-bottom:14px">You can change these anytime in Settings.</p>
+      <div class="measure-setup-list">
+        ${all.map(mp => `
+          <label class="measure-setup-item">
+            <span>${mp.label}</span>
+            <input type="checkbox" data-id="${mp.id}" ${tracked.includes(mp.id) ? 'checked' : ''}>
+          </label>`).join('')}
+      </div>
+      <button class="btn btn-primary" id="measure-setup-done" style="margin-top:16px;width:100%">Save</button>`;
+    body.querySelector('#measure-setup-done')?.addEventListener('click', () => {
+      const selected = [...body.querySelectorAll('input[type=checkbox]:checked')].map(el => el.dataset.id);
+      const ns = Store.getSettings();
+      ns.trackedMeasurements = selected;
+      ns.measurementsSetupDone = true;
+      Store.saveSettings(ns);
+      closeModal();
+      if (onDone) onDone();
+    });
+  });
+}
+
+function renderMeasurementForm(body) {
+  const s       = Store.getSettings();
+  const tracked = (s.trackedMeasurements || []).map(id => MEASUREMENT_POINTS.find(mp => mp.id === id)).filter(Boolean);
+  const today   = todayStr();
+  const existing = Store.getMeasurements().find(m => m.date === today) || {};
+
+  body.innerHTML = `
+    <div class="modal-title">Log Measurements</div>
+    <div class="measure-body-svg-wrap">
+      ${buildBodySvg(tracked)}
+    </div>
+    <div class="measure-inputs">
+      ${tracked.map(mp => `
+        <div class="measure-input-row">
+          <label class="measure-input-label">${mp.label} <span class="measure-unit">(inches)</span></label>
+          <input type="number" step="0.25" class="settings-row-input" id="measure-${mp.id}" value="${existing[mp.id] || ''}">
+        </div>`).join('')}
+    </div>
+    <button class="btn btn-primary" id="measure-save-btn" style="margin-top:16px;width:100%">Save</button>`;
+
+  body.querySelector('#measure-save-btn')?.addEventListener('click', () => {
+    const entry = { date: today };
+    tracked.forEach(mp => {
+      const val = parseFloat(body.querySelector(`#measure-${mp.id}`)?.value);
+      if (!isNaN(val)) entry[mp.id] = val;
+    });
+    const all = Store.getMeasurements().filter(m => m.date !== today);
+    all.push(entry);
+    Store.saveMeasurements(all);
+    showToast('Measurements saved.', 'success');
+    closeModal();
+    const screen = document.getElementById('screen-today');
+    refreshTodayOptionalCards(screen);
+  });
+}
+
+function buildBodySvg(tracked) {
+  const dots = tracked.map(mp => `
+    <circle cx="${mp.cx}" cy="${mp.cy}" r="8" fill="var(--sage)" opacity="0.8"/>
+    <text x="${mp.cx}" y="${mp.cy + 4}" text-anchor="middle" font-size="9" fill="white" font-family="sans-serif">${mp.label.split(' ').map(w=>w[0]).join('')}</text>
+  `).join('');
+
+  return `
+    <svg viewBox="0 0 300 450" width="120" height="180" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto">
+      <!-- Head -->
+      <ellipse cx="150" cy="60" rx="28" ry="32" fill="none" stroke="var(--text-light)" stroke-width="2"/>
+      <!-- Neck -->
+      <rect x="139" y="90" width="22" height="18" fill="none" stroke="var(--text-light)" stroke-width="2"/>
+      <!-- Torso -->
+      <path d="M110,108 L90,108 L85,270 L215,270 L210,108 L190,108 Z" fill="none" stroke="var(--text-light)" stroke-width="2"/>
+      <!-- Left arm -->
+      <path d="M90,112 Q70,140 72,200 L88,200 Q86,142 108,116 Z" fill="none" stroke="var(--text-light)" stroke-width="2"/>
+      <!-- Right arm -->
+      <path d="M210,112 Q230,140 228,200 L212,200 Q214,142 192,116 Z" fill="none" stroke="var(--text-light)" stroke-width="2"/>
+      <!-- Left leg -->
+      <path d="M115,270 L105,380 L130,380 L150,295 Z" fill="none" stroke="var(--text-light)" stroke-width="2"/>
+      <!-- Right leg -->
+      <path d="M185,270 L195,380 L170,380 L150,295 Z" fill="none" stroke="var(--text-light)" stroke-width="2"/>
+      ${dots}
+    </svg>`;
+}
+
+/* ─── Shared: refresh optional cards on Today screen ─────────────────────── */
+
+function refreshTodayOptionalCards(screen) {
+  const wrapper = screen.querySelector('#today-optional-cards');
+  if (!wrapper) return;
+  wrapper.innerHTML = renderSleepCard() + renderMoodCard() + renderPhotoPromptCard() + renderMeasurementPromptCard();
+  bindSleepCard(screen);
+  bindMoodCard(screen);
+  bindPhotoPromptCard(screen);
+  bindMeasurementPromptCard(screen);
 }
 
 /* ─── TODAY Screen ───────────────────────────────────────────────────────── */
@@ -1436,6 +2146,14 @@ function renderToday() {
     </div>
   `;
 
+  // Optional feature cards (sleep, mood, photos, measurements)
+  html += `<div id="today-optional-cards">`;
+  html += renderSleepCard();
+  html += renderMoodCard();
+  html += renderPhotoPromptCard();
+  html += renderMeasurementPromptCard();
+  html += `</div>`;
+
   // Top section: all core habits
   const coreHabits = habits.filter(h => CORE_HABIT_IDS.includes(h.id));
   if (coreHabits.length) {
@@ -1482,6 +2200,12 @@ function renderToday() {
   screen.innerHTML = html;
 
   screen.querySelector('#retro-log-btn')?.addEventListener('click', openRetroDatePicker);
+
+  // Bind optional feature cards
+  bindSleepCard(screen);
+  bindMoodCard(screen);
+  bindPhotoPromptCard(screen);
+  bindMeasurementPromptCard(screen);
 
   // Habit events: check-zone → toggle, tap-zone → expand detail, prompt handlers
   screen.querySelectorAll('.habit-item').forEach(item => {
@@ -1728,6 +2452,9 @@ function renderWeek() {
     `;
     if (fluctuation && delta !== 0) {
       html += `<p class="text-small text-muted">Within normal fluctuation range (±1.5 lbs).</p>`;
+    }
+    if (settings.mode === 'maintenance') {
+      html += `<p class="text-small text-muted mt-8" style="font-style:italic">Consistency keeps you in your range. The habits that got you here are the habits that keep you here.</p>`;
     }
     if (settings.breastfeeding) {
       html += `<p class="text-small text-muted mt-8" style="font-style:italic">Breastfeeding affects when your body lets go of weight. Your habit consistency over time tells a more honest story than any single weigh-in.</p>`;
@@ -2039,6 +2766,10 @@ function renderProgress() {
     html += `<div class="empty-state"><p>Log at least 2 weigh-ins to see your weight trend.</p></div>`;
   } else {
     html += `<div class="chart-wrap"><canvas id="weight-chart"></canvas></div>`;
+    // Maintenance note below chart
+    if (settings.mode === 'maintenance' && settings.goalWeightLow && settings.goalWeightHigh) {
+      html += `<p class="weight-chart-note">Maintaining ${settings.goalWeightLow} to ${settings.goalWeightHigh} lbs</p>`;
+    }
     // Milestones
     if (settings.startingWeight) {
       const latest = weighIns[weighIns.length-1].weight;
@@ -2179,14 +2910,272 @@ function renderProgress() {
     html += `</div>`;
   }
 
+  // Sleep Tracking chart (Feature 2)
+  if (settings.featSleepTracking) {
+    const sleepLogs = Store.getSleepLogs().sort((a,b) => a.date.localeCompare(b.date));
+    if (sleepLogs.length > 0) {
+      html += `<div class="screen-section-title">Sleep</div>`;
+      html += `<div class="card">`;
+      html += `<div class="chart-wrap"><canvas id="sleep-chart"></canvas></div>`;
+      // Average over last 4 weeks
+      const recent28 = sleepLogs.filter(l => {
+        const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 28);
+        return l.date >= dateStr(cutoff);
+      });
+      if (recent28.length > 0) {
+        const avgHrs = recent28.reduce((s, l) => s + (calcSleepHours(l.sleepTime, l.wakeTime) || 0), 0) / recent28.length;
+        html += `<div class="avg-loss-stat">Average over last 4 weeks: <strong>${fmtSleepHours(avgHrs)}</strong></div>`;
+      }
+      if (settings.breastfeeding) {
+        html += `<p class="text-small text-muted mt-8" style="font-style:italic">Broken sleep is expected right now. Focus on the trend over weeks, not any single night.</p>`;
+      }
+      html += `</div>`;
+    }
+  }
+
+  // Mood / Energy / Motivation charts (Feature 3)
+  if (settings.featMoodLog) {
+    const moodLogs = Store.getMoodLogs().sort((a,b) => a.date.localeCompare(b.date));
+    if (moodLogs.length > 0) {
+      html += `<div class="screen-section-title">Mood, Energy &amp; Motivation</div>`;
+      html += `<div class="card"><div class="chart-wrap"><canvas id="mood-chart"></canvas></div></div>`;
+    }
+  }
+
+  // Progress Photos tab (Feature 4)
+  if (settings.featProgressPhotos) {
+    const photos = Store.getProgressPhotos().sort((a,b) => b.date.localeCompare(a.date));
+    html += `<div class="screen-section-title">Progress Photos</div>`;
+    html += `<div class="card">`;
+    if (photos.length === 0) {
+      html += `<div class="empty-state"><p>No photos yet. Your first monthly prompt will appear on the 1st of next month.</p></div>`;
+    } else {
+      html += `<div class="photos-grid">`;
+      photos.forEach(p => {
+        const d = new Date(p.date + 'T12:00:00');
+        const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        html += `
+          <div class="photo-thumb" data-date="${p.date}">
+            <img src="${p.dataUrl}" alt="${label}" class="photo-thumb-img">
+            <div class="photo-thumb-label">${label}</div>
+          </div>`;
+      });
+      html += `</div>`;
+      html += `<button class="btn btn-sm btn-outline" id="export-photos-btn" style="margin-top:12px;width:100%">Export photos as zip</button>`;
+      html += `<p class="text-small text-muted mt-8">Progress photos are stored on this device only. They will be lost if you clear your browser data. Export regularly to back them up.</p>`;
+    }
+    html += `</div>`;
+  }
+
+  // Measurements (Feature 5)
+  if (settings.featMeasurements) {
+    const measurements = Store.getMeasurements().sort((a,b) => a.date.localeCompare(b.date));
+    html += `<div class="screen-section-title">Measurements</div>`;
+    html += `<div class="card">`;
+    if (measurements.length === 0) {
+      html += `<div class="empty-state"><p>No measurements yet. Your first monthly prompt will appear on the 1st of next month.</p></div>`;
+    } else {
+      const tracked = (settings.trackedMeasurements || []).map(id => MEASUREMENT_POINTS.find(mp => mp.id === id)).filter(Boolean);
+      // Total inches
+      const first = measurements[0];
+      const last  = measurements[measurements.length - 1];
+      const totalFirst = tracked.reduce((s, mp) => s + (first[mp.id] || 0), 0);
+      const totalLast  = tracked.reduce((s, mp) => s + (last[mp.id]  || 0), 0);
+      const totalChange = totalFirst > 0 ? (totalLast - totalFirst).toFixed(1) : null;
+      if (totalChange !== null) {
+        const sign = parseFloat(totalChange) <= 0 ? '' : '+';
+        html += `<div class="avg-loss-stat" style="margin-bottom:12px">Total inches: <strong>${sign}${totalChange} in since first log</strong></div>`;
+      }
+      html += `<div class="chart-wrap"><canvas id="measurements-chart"></canvas></div>`;
+    }
+    html += `</div>`;
+  }
+
   screen.innerHTML = html;
 
   // Plateau check-in button
   screen.querySelector('#plateau-checkin-btn')?.addEventListener('click', openPlateauCheckin);
 
-  // Init chart after DOM is ready
-  if (weighIns.length >= 2) {
-    requestAnimationFrame(() => initWeightChart(weighIns, settings));
+  // Photo lightbox
+  screen.querySelectorAll('.photo-thumb').forEach(el => {
+    el.addEventListener('click', () => {
+      const date   = el.dataset.date;
+      const photos = Store.getProgressPhotos();
+      const photo  = photos.find(p => p.date === date);
+      if (!photo) return;
+      openModal(body => {
+        const d = new Date(date + 'T12:00:00');
+        const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        body.innerHTML = `
+          <div class="modal-title">${label}</div>
+          <img src="${photo.dataUrl}" style="width:100%;border-radius:8px;margin-top:8px" alt="${label}">
+          <button class="btn btn-outline btn-sm" id="photo-delete-btn" style="margin-top:12px;width:100%;color:var(--text-muted)">Delete this photo</button>`;
+        body.querySelector('#photo-delete-btn')?.addEventListener('click', () => {
+          if (!confirm('Delete this photo? This cannot be undone.')) return;
+          const updated = Store.getProgressPhotos().filter(p => p.date !== date);
+          Store.saveProgressPhotos(updated);
+          closeModal();
+          renderProgress();
+        });
+      });
+    });
+  });
+
+  // Export photos
+  screen.querySelector('#export-photos-btn')?.addEventListener('click', exportProgressPhotos);
+
+  // Init charts after DOM
+  requestAnimationFrame(() => {
+    if (weighIns.length >= 2) initWeightChart(weighIns, settings);
+    if (settings.featSleepTracking) {
+      const sleepLogs = Store.getSleepLogs().sort((a,b) => a.date.localeCompare(b.date));
+      if (sleepLogs.length > 0) initSleepChart(sleepLogs, settings);
+    }
+    if (settings.featMoodLog) {
+      const moodLogs = Store.getMoodLogs().sort((a,b) => a.date.localeCompare(b.date));
+      if (moodLogs.length > 0) initMoodChart(moodLogs);
+    }
+    if (settings.featMeasurements) {
+      const measurements = Store.getMeasurements().sort((a,b) => a.date.localeCompare(b.date));
+      if (measurements.length > 0) initMeasurementsChart(measurements, settings);
+    }
+  });
+}
+
+let sleepChart = null;
+let moodChart  = null;
+let measurementsChart = null;
+
+function initSleepChart(logs, settings) {
+  const canvas = document.getElementById('sleep-chart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (sleepChart) { sleepChart.destroy(); sleepChart = null; }
+
+  const labels = logs.map(l => l.date);
+  const data   = logs.map(l => {
+    const h = calcSleepHours(l.sleepTime, l.wakeTime);
+    return h !== null ? Math.round(h * 10) / 10 : null;
+  });
+
+  const target = settings.breastfeeding ? 6 : 7;
+
+  const barColors = data.map(h => {
+    if (h === null) return 'rgba(200,200,200,0.3)';
+    if (h < 5)    return 'rgba(217,119,6,0.75)';
+    if (h < 6.5)  return 'rgba(160,160,160,0.6)';
+    return 'rgba(93,122,88,0.75)';
+  });
+
+  sleepChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Sleep (hrs)',
+        data,
+        backgroundColor: barColors,
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        annotation: {
+          annotations: {
+            targetLine: {
+              type: 'line',
+              yMin: target,
+              yMax: target,
+              borderColor: 'rgba(93,122,88,0.5)',
+              borderWidth: 1,
+              borderDash: [4, 4],
+              label: { content: `${target} hr target`, enabled: true, position: 'end', font: { size: 10 }, color: 'rgba(93,122,88,0.8)' },
+            },
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 8, font: { size: 10 } }, grid: { display: false } },
+        y: { min: 0, max: 12, ticks: { stepSize: 2 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+      },
+    },
+  });
+}
+
+function initMoodChart(logs) {
+  const canvas = document.getElementById('mood-chart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (moodChart) { moodChart.destroy(); moodChart = null; }
+
+  const labels = logs.map(l => l.date);
+  moodChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Mood',       data: logs.map(l => l.mood),       borderColor: 'rgba(190,100,120,0.8)', borderWidth: 2, tension: 0.3, pointRadius: 3, fill: false },
+        { label: 'Energy',     data: logs.map(l => l.energy),     borderColor: 'rgba(93,122,88,0.8)',   borderWidth: 2, tension: 0.3, pointRadius: 3, fill: false },
+        { label: 'Motivation', data: logs.map(l => l.motivation), borderColor: 'rgba(180,140,80,0.8)',  borderWidth: 2, tension: 0.3, pointRadius: 3, fill: false },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { maxTicksLimit: 8, font: { size: 10 } }, grid: { display: false } },
+        y: { min: 0, max: 10, ticks: { stepSize: 2 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+      },
+    },
+  });
+}
+
+function initMeasurementsChart(measurements, settings) {
+  const canvas = document.getElementById('measurements-chart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (measurementsChart) { measurementsChart.destroy(); measurementsChart = null; }
+
+  const tracked = (settings.trackedMeasurements || []).map(id => MEASUREMENT_POINTS.find(mp => mp.id === id)).filter(Boolean);
+  const labels  = measurements.map(m => m.date);
+  const colors  = ['rgba(190,100,120,0.8)','rgba(93,122,88,0.8)','rgba(180,140,80,0.8)','rgba(100,140,200,0.8)','rgba(160,100,180,0.8)','rgba(80,180,180,0.8)','rgba(200,120,80,0.8)'];
+
+  const datasets = tracked.map((mp, i) => ({
+    label: mp.label,
+    data: measurements.map(m => m[mp.id] ?? null),
+    borderColor: colors[i % colors.length],
+    borderWidth: 2,
+    tension: 0.3,
+    pointRadius: 3,
+    fill: false,
+    spanGaps: true,
+  }));
+
+  measurementsChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { maxTicksLimit: 8, font: { size: 10 } }, grid: { display: false } },
+        y: { grid: { color: 'rgba(0,0,0,0.05)' } },
+      },
+    },
+  });
+}
+
+async function exportProgressPhotos() {
+  const photos = Store.getProgressPhotos();
+  if (!photos.length) return;
+
+  // Simple approach: open each photo in a new tab since JSZip may not be available
+  // If JSZip is present we'd use it; for now we trigger individual downloads
+  for (const p of photos) {
+    const a = document.createElement('a');
+    a.href = p.dataUrl;
+    a.download = `bloom-photo-${p.date}.jpg`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
   }
 }
 
@@ -2206,6 +3195,48 @@ function initWeightChart(weighIns, settings) {
   });
 
   const goalHigh = settings.goalWeightHigh || 145;
+  const goalLow  = settings.goalWeightLow  || null;
+  const isMaintenance = settings.mode === 'maintenance';
+
+  // Build annotation: shaded band in maintenance, single dashed line in weight-loss
+  let chartAnnotation;
+  if (goalHigh) {
+    if (isMaintenance && goalLow) {
+      chartAnnotation = {
+        annotations: {
+          maintBand: {
+            type: 'box',
+            yMin: goalLow,
+            yMax: goalHigh,
+            backgroundColor: 'rgba(196,180,154,0.15)',
+            borderColor: 'rgba(196,180,154,0.5)',
+            borderWidth: 1,
+            label: {
+              content: `Maintenance: ${goalLow}–${goalHigh} lbs`,
+              display: true,
+              position: { x: 'end', y: 'start' },
+              color: '#C4B49A',
+              font: { size: 10 },
+            },
+          },
+        },
+      };
+    } else {
+      chartAnnotation = {
+        annotations: {
+          goalLine: {
+            type: 'line',
+            yMin: goalHigh,
+            yMax: goalHigh,
+            borderColor: 'rgba(196,180,154,0.6)',
+            borderWidth: 1.5,
+            borderDash: [4, 4],
+            label: { content: 'Goal', display: true, position: 'end', color: '#C4B49A', font: { size: 10 } },
+          },
+        },
+      };
+    }
+  }
 
   weightChart = new Chart(canvas, {
     type: 'line',
@@ -2249,19 +3280,7 @@ function initWeightChart(weighIns, settings) {
             label: ctx => ctx.datasetIndex === 1 ? `${ctx.parsed.y} lbs` : `Trend: ${ctx.parsed.y.toFixed(1)} lbs`,
           },
         },
-        annotation: goalHigh ? {
-          annotations: {
-            goalLine: {
-              type: 'line',
-              yMin: goalHigh,
-              yMax: goalHigh,
-              borderColor: 'rgba(196,180,154,0.6)',
-              borderWidth: 1.5,
-              borderDash: [4, 4],
-              label: { content: 'Goal', display: true, position: 'end', color: '#C4B49A', font: { size: 10 } },
-            },
-          },
-        } : undefined,
+        annotation: chartAnnotation,
       },
       scales: {
         x: {
@@ -2324,6 +3343,12 @@ function renderSettings() {
   const screen = document.getElementById('screen-settings');
   const s = Store.getSettings();
 
+  const notifBlocked = Notifications.isBlocked();
+  const notifBlockedMsg = notifBlocked
+    ? `<p style="font-size:12px;color:var(--text-muted);margin-top:6px;font-style:italic">Enable notifications in iOS Settings to use this feature.</p>`
+    : '';
+  const notifDisabled = (el) => notifBlocked ? `style="opacity:0.5;pointer-events:none"` : '';
+
   const html = `
     <div class="screen-header"><h2>Settings</h2></div>
 
@@ -2362,6 +3387,13 @@ function renderSettings() {
           <div class="settings-row-label">App start date</div>
           <input class="settings-row-input" id="s-start-date" type="date" value="${s.appStartDate || todayStr()}">
         </div>
+        <div class="settings-row">
+          <div class="settings-row-label">Current goal</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="settings-mode-label" id="settings-mode-label">${s.mode === 'maintenance' ? 'Maintenance' : 'Weight loss'}</span>
+            <button class="btn btn-sm btn-outline" id="s-switch-mode" style="font-size:12px;padding:4px 10px">${s.mode === 'maintenance' ? 'Switch to weight loss' : 'Switch to maintenance'}</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2396,6 +3428,7 @@ function renderSettings() {
           <div class="settings-row-label">Eating cutoff</div>
           <input class="settings-row-input" id="s-eat-cutoff" type="time" value="${s.eatCutoff || '19:00'}">
         </div>
+        <p class="settings-note">If you are breastfeeding or genuinely hungry in the evening, eating enough always takes priority over this cutoff.</p>
         <div class="settings-row">
           <div class="settings-row-label">Caffeine cutoff</div>
           <input class="settings-row-input" id="s-caffeine-cutoff" type="time" value="${s.caffeineCutoff || '13:00'}">
@@ -2430,6 +3463,83 @@ function renderSettings() {
         </div>
       </div>
     </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">Optional Features</div>
+      <div class="settings-group">
+        <div class="toggle-row" style="padding:13px 16px">
+          <div><div class="toggle-label">Notifications</div><div class="toggle-sublabel">Streak alerts, reminders, and nudges</div></div>
+          <label class="toggle"><input type="checkbox" id="s-feat-notifications" ${s.featNotifications ? 'checked' : ''}><div class="toggle-track"></div></label>
+        </div>
+        <div class="toggle-row" style="padding:13px 16px">
+          <div><div class="toggle-label">Sleep time tracking</div><div class="toggle-sublabel">Log your sleep window each morning</div></div>
+          <label class="toggle"><input type="checkbox" id="s-feat-sleep" ${s.featSleepTracking ? 'checked' : ''}><div class="toggle-track"></div></label>
+        </div>
+        <div class="toggle-row" style="padding:13px 16px">
+          <div><div class="toggle-label">Mood, energy &amp; motivation log</div><div class="toggle-sublabel">Daily 0-10 check-in on how you are doing</div></div>
+          <label class="toggle"><input type="checkbox" id="s-feat-mood" ${s.featMoodLog ? 'checked' : ''}><div class="toggle-track"></div></label>
+        </div>
+        <div class="toggle-row" style="padding:13px 16px">
+          <div><div class="toggle-label">Progress photos</div><div class="toggle-sublabel">Monthly private photo log, stored on device only</div></div>
+          <label class="toggle"><input type="checkbox" id="s-feat-photos" ${s.featProgressPhotos ? 'checked' : ''}><div class="toggle-track"></div></label>
+        </div>
+        <div class="toggle-row" style="padding:13px 16px">
+          <div><div class="toggle-label">Measurement tracking</div><div class="toggle-sublabel">Monthly body measurements with visual body model</div></div>
+          <label class="toggle"><input type="checkbox" id="s-feat-measurements" ${s.featMeasurements ? 'checked' : ''}><div class="toggle-track"></div></label>
+        </div>
+      </div>
+    </div>
+
+    ${s.featNotifications ? `
+    <div class="settings-section">
+      <div class="settings-section-title">Notifications</div>
+      ${notifBlockedMsg}
+      <div class="settings-group" ${notifBlocked ? 'style="opacity:0.5;pointer-events:none"' : ''}>
+        <div class="toggle-row" style="padding:13px 16px">
+          <div>
+            <div class="toggle-label">Streak protection alert</div>
+            <div class="toggle-sublabel">Reminds you when your streak is at risk</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="s-notif-streak" ${s.notifStreakProtection ? 'checked' : ''}><div class="toggle-track"></div></label>
+        </div>
+        <div class="toggle-row" style="padding:13px 16px">
+          <div>
+            <div class="toggle-label">Weekly weigh-in reminder</div>
+            <div class="toggle-sublabel">Sunday morning reminder to log your weight</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="s-notif-weighin" ${s.notifWeighIn ? 'checked' : ''}><div class="toggle-track"></div></label>
+        </div>
+        <div class="toggle-row" style="padding:13px 16px">
+          <div>
+            <div class="toggle-label">Bedtime nudge</div>
+            <div class="toggle-sublabel">A gentle reminder at 10pm if your bedtime habit is not checked</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="s-notif-bedtime" ${s.notifBedtime ? 'checked' : ''}><div class="toggle-track"></div></label>
+        </div>
+        <div class="toggle-row" style="padding:13px 16px">
+          <div>
+            <div class="toggle-label">Morning check-in reminder</div>
+            <div class="toggle-sublabel">A gentle nudge to log your habits</div>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+              <span style="font-size:13px;color:var(--text-muted)">Time:</span>
+              <input type="time" class="settings-row-input" id="s-notif-morning-time" value="${s.notifMorningTime || '08:00'}" style="max-width:120px">
+            </div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="s-notif-morning" ${s.notifMorningCheckin ? 'checked' : ''}><div class="toggle-track"></div></label>
+        </div>
+      </div>
+    </div>` : ''}
+
+    ${s.featMeasurements ? `
+    <div class="settings-section">
+      <div class="settings-section-title">Measurement Tracking</div>
+      <div class="settings-group">
+        <div class="settings-btn-row" id="s-edit-measurements">
+          <div class="settings-btn-label">Edit tracked measurements</div>
+          <div class="settings-btn-desc">Choose which body measurements to track each month</div>
+        </div>
+      </div>
+    </div>` : ''}
 
     <div class="settings-section">
       <div class="settings-section-title">Data &amp; Backup</div>
@@ -2480,8 +3590,94 @@ function renderSettings() {
 
   screen.querySelector('#s-bf')?.addEventListener('change', e => {
     const s = Store.getSettings();
+    if (e.target.checked && !Store.get('bloom_bf_safety_seen')) {
+      // Show safety card once
+      e.target.checked = false; // hold off until user confirms
+      openModal(body => {
+        body.innerHTML = `
+          <h2 class="modal-title">A note on breastfeeding and weight loss</h2>
+          <p style="margin:0 0 12px;font-size:14px;line-height:1.6">Breastfeeding increases your daily calorie needs. Most guidelines suggest an additional 300 to 500 kcal per day. Restricting calories too aggressively while breastfeeding can reduce milk supply and affect your energy and recovery.</p>
+          <p style="margin:0 0 12px;font-size:14px;line-height:1.6">Bloom will adjust your sleep reference line and show a reminder on the eating cutoff setting. However, all targets in Bloom are guides, not rules. If you are hungry, eat. If a habit conflicts with feeding your baby or your own energy needs, skip it.</p>
+          <p style="margin:0 0 20px;font-size:14px;line-height:1.6">If you have concerns about weight management while breastfeeding, a registered dietitian or your midwife or OB can give personalised guidance.</p>
+          <button class="btn-primary" id="bf-safety-ok" style="width:100%">Got it</button>
+        `;
+        body.querySelector('#bf-safety-ok').addEventListener('click', () => {
+          Store.set('bloom_bf_safety_seen', true);
+          const s2 = Store.getSettings();
+          s2.breastfeeding = true;
+          Store.saveSettings(s2);
+          const cb = screen.querySelector('#s-bf');
+          if (cb) cb.checked = true;
+          closeModal();
+        });
+      });
+      return;
+    }
     s.breastfeeding = e.target.checked;
     Store.saveSettings(s);
+  });
+
+  // Optional feature toggles
+  const featToggles = [
+    ['s-feat-notifications',  'featNotifications'],
+    ['s-feat-sleep',          'featSleepTracking'],
+    ['s-feat-mood',           'featMoodLog'],
+    ['s-feat-photos',         'featProgressPhotos'],
+    ['s-feat-measurements',   'featMeasurements'],
+  ];
+  featToggles.forEach(([elId, key]) => {
+    screen.querySelector('#' + elId)?.addEventListener('change', async e => {
+      const s = Store.getSettings();
+      s[key] = e.target.checked;
+      Store.saveSettings(s);
+      // Re-render settings to show/hide dependent sections
+      renderSettings();
+      // If turning on notifications, request permission
+      if (key === 'featNotifications' && e.target.checked) {
+        const perm = await Notifications.requestPermission();
+        if (perm === 'denied') renderSettings(); // re-render to show blocked message
+      }
+      // Also refresh today screen
+      if (currentScreen === 'today') renderToday();
+    });
+  });
+
+  // Notification toggles
+  const notifToggles = [
+    ['s-notif-streak',   'notifStreakProtection'],
+    ['s-notif-weighin',  'notifWeighIn'],
+    ['s-notif-bedtime',  'notifBedtime'],
+    ['s-notif-morning',  'notifMorningCheckin'],
+  ];
+  notifToggles.forEach(([elId, key]) => {
+    screen.querySelector('#' + elId)?.addEventListener('change', async e => {
+      const s = Store.getSettings();
+      if (e.target.checked && Notification.permission !== 'granted') {
+        const perm = await Notifications.requestPermission();
+        if (perm !== 'granted') { e.target.checked = false; renderSettings(); return; }
+      }
+      s[key] = e.target.checked;
+      Store.saveSettings(s);
+    });
+  });
+
+  screen.querySelector('#s-notif-morning-time')?.addEventListener('change', e => {
+    const s = Store.getSettings();
+    s.notifMorningTime = e.target.value;
+    Store.saveSettings(s);
+  });
+
+  screen.querySelector('#s-edit-measurements')?.addEventListener('click', () => {
+    openMeasurementSetup(() => renderSettings());
+  });
+
+  screen.querySelector('#s-switch-mode')?.addEventListener('click', () => {
+    const s2 = Store.getSettings();
+    s2.mode = s2.mode === 'maintenance' ? 'weight_loss' : 'maintenance';
+    Store.saveSettings(s2);
+    renderSettings();
+    showToast(s2.mode === 'maintenance' ? 'Switched to maintenance mode' : 'Switched to weight loss mode', 'success');
+    updateHeader();
   });
 
   screen.querySelector('#s-how-bloom-works')?.addEventListener('click', openHowBloomWorks);
@@ -2727,6 +3923,54 @@ function saveWorkout() {
 
 /* ── Weigh-in Modal ── */
 
+function checkGoalReached(weight) {
+  const s = Store.getSettings();
+  if (s.mode === 'maintenance') return; // already in maintenance, no re-trigger
+  const low  = s.goalWeightLow;
+  const high = s.goalWeightHigh;
+  if (!low || !high) return;
+  if (weight < low || weight > high) return; // outside range
+
+  // Per-range flag so re-entering range after a dip doesn't re-show
+  const flagKey = `goal_reached_${Math.round(low)}_${Math.round(high)}`;
+  if (Store.get(flagKey)) return;
+  Store.set(flagKey, true);
+
+  setTimeout(() => {
+    openModal(body => {
+      body.innerHTML = `
+        <h2 class="modal-title">You reached your goal.</h2>
+        <p style="margin:0 0 20px;font-size:14px;line-height:1.6">This is worth acknowledging. You showed up consistently and it paid off.</p>
+        <p style="margin:0 0 24px;font-size:14px;font-weight:500">What would you like to do now?</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button class="btn-primary" id="goal-switch-maintenance">Switch to maintenance</button>
+          <button class="btn-outline" id="goal-set-new">Set a new goal</button>
+        </div>
+      `;
+      body.querySelector('#goal-switch-maintenance').addEventListener('click', () => {
+        const s2 = Store.getSettings();
+        s2.mode = 'maintenance';
+        Store.saveSettings(s2);
+        closeModal();
+        showToast('Switched to maintenance mode', 'success');
+        updateHeader();
+        if (currentScreen === 'week')     renderWeek();
+        if (currentScreen === 'progress') renderProgress();
+        if (currentScreen === 'settings') renderSettings();
+      });
+      body.querySelector('#goal-set-new').addEventListener('click', () => {
+        closeModal();
+        // Navigate to settings and scroll to goal weight fields
+        navigate('settings');
+        setTimeout(() => {
+          const el = document.querySelector('#s-goal-low');
+          if (el) { el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        }, 200);
+      });
+    });
+  }, 500); // slight delay so toast clears
+}
+
 function openWeighInModal() {
   openModal(body => {
     const weighIns = Store.getWeighIns();
@@ -2770,6 +4014,9 @@ function openWeighInModal() {
       if (currentScreen === 'week') renderWeek();
       if (currentScreen === 'progress') renderProgress();
       updatePointsBadge();
+
+      // Check for goal range achievement
+      checkGoalReached(weight);
     });
   });
 }
@@ -3458,52 +4705,52 @@ function openHowBloomWorks() {
 
       <div class="how-section">
         <div class="how-heading">The daily check-in</div>
-        <p>Open the Today screen and tap habits as you complete them throughout the day. Each check-off earns points immediately. Habits reset at midnight. The goal is to make this a 60-second interaction — not a journaling session.</p>
+        <p>Open the Today screen and tap habits as you complete them throughout the day. Each check-off earns points immediately and habits reset at midnight. If you forget to log a day, use the "Log a past day" button at the bottom of the Today screen -- you can go back up to 7 days and check off anything you actually did. The goal is to make this a 60-second interaction, not a planning session.</p>
       </div>
 
       <div class="how-section">
-        <div class="how-heading">The four domains</div>
-        <p>Your habits feed into four domains: Sleep, Nutrition, Movement, and Stress & Recovery. These aren't arbitrary categories — they're the four mechanisms the research identifies as most important for postpartum weight loss and wellbeing. Intervening on all four together produces better outcomes than focusing on food and exercise alone.</p>
+        <div class="how-heading">Your core habits and bonus habits</div>
+        <p>Six habits are marked as core commitments: bedtime, protein breakfast, evening eating cutoff, protein and plants at lunch and dinner, and strength training. Completing at least five of those six is what counts as a streak day. Everything else on your list is a bonus habit. Bonus habits still earn points and contribute to your domain bars -- they just don't affect the streak.</p>
       </div>
 
       <div class="how-section">
         <div class="how-heading">Understanding your domain bars</div>
-        <p>The domain bars on the This Week screen fill up based on your habit completions for the week so far. They calculate based on days elapsed, not out of seven — so on Tuesday, you're being measured against two days of possible habits, not seven. This means the bars are always an honest reflection of how you're doing, not how incomplete your week looks.</p>
+        <p>Your habits feed into four domains: Sleep, Nutrition, Movement, and Stress &amp; Recovery. The domain bars on the This Week screen fill based on your completions for the week so far, measured against days elapsed rather than all seven days -- so on a Tuesday, you're compared against two days of possible habits, not a full week. A few habits cross domains: the morning walk counts toward both Movement and Sleep, and mobility work counts toward both Movement and Stress.</p>
       </div>
 
       <div class="how-section">
-        <div class="how-heading">The evidence behind each habit</div>
-        <p>Every habit in the checklist has a one-sentence explanation of the research behind it. Tap any habit name on the Today screen to read it.</p>
+        <div class="how-heading">The streak system</div>
+        <p>Your streak counts consecutive days where you completed at least five of your six core habits. One grace day per calendar week is built in -- if you miss a day, the streak survives as long as it's the only miss that week. The streak counter appears on the Today screen once you have a streak of 1 or more days. Milestones at 7, 21, 66, 90, 180, and 365 days are tracked in the Progress screen and earn badges permanently -- breaking a streak never removes a badge you've already earned.</p>
       </div>
 
       <div class="how-section">
-        <div class="how-heading">Logging workouts</div>
-        <p>On the Exercise screen, tap "Log a workout" and choose your activity type, duration, and intensity. Nothing beyond activity type is required — on a rushed day it's one tap. Strength training is marked as the priority because resistance training preserves lean muscle mass during weight loss, which protects your metabolic rate postpartum.</p>
+        <div class="how-heading">The savings bar and rewards</div>
+        <p>Set a specific reward goal -- something you want to buy or experience. Every point earns toward your goal, and when the bar fills you tap "Cash out." The idea is simple: you commit to not buying that thing until you've earned it, and the app tracks the permission. Past goals are saved in your rewards history on the Progress screen.</p>
       </div>
 
       <div class="how-section">
-        <div class="how-heading">Your reward goal</div>
-        <p>Set a specific goal — something you want to earn. Every point converts to $0.50 toward it. When you reach the amount, cash it out and set a new goal. The idea is simple: you commit to not buying that thing until you've earned it. The app is your permission slip.</p>
+        <div class="how-heading">Logging exercise</div>
+        <p>On the Exercise screen, tap "Log a workout" and choose an activity, duration, and intensity. Checking the strength training habit on Today will prompt the workout log automatically. Strength training sessions are marked as priority because resistance training preserves lean muscle mass during weight loss. The Exercise screen shows your weekly totals and full workout history.</p>
       </div>
 
       <div class="how-section">
         <div class="how-heading">Reading your progress</div>
-        <p>The weight graph on the Progress screen shows your full history with a smoothed trend line overlaid. The trend line is what matters — individual weeks are noisy, especially postpartum. Milestone markers show your first 5 lbs lost, halfway point, and goal range.</p>
+        <p>The Progress screen shows your full weight history with a smoothed trend line overlaid -- the trend is what to watch, not individual weeks. Milestone markers show your first 5 and 10 lbs lost and whether you've reached your goal range. If you switch to maintenance mode after reaching your goal, the target line changes to a shaded band showing your maintenance range. The Progress screen also shows your streak history, earned badges, and any optional tracking you have turned on.</p>
+      </div>
+
+      <div class="how-section">
+        <div class="how-heading">Optional features</div>
+        <p>Five optional features are available under Settings -- Optional Features. Sleep tracking adds a morning card to log your estimated sleep window and shows a bar chart over time. The mood, energy, and motivation log adds a daily check-in with pattern charts on the Progress screen. Progress photos lets you capture a monthly photo and view them as a timeline. Measurement tracking records body measurements monthly with a line graph. Notifications let you set up to four optional reminders including streak protection, weigh-in nudge, bedtime reminder, and a morning check-in. All optional features are off by default and can be turned on or off at any time.</p>
       </div>
 
       <div class="how-section">
         <div class="how-heading">Customizing your habits</div>
-        <p>Everything in Bloom is adjustable. In Settings you can toggle any habit on or off, rename items, add your own custom habits, adjust point values, and edit your activity menu. The app should reflect your life — not the other way around.</p>
-      </div>
-
-      <div class="how-section">
-        <div class="how-heading">Your data</div>
-        <p>All data is stored locally on your device. No account is required and no one can see your information. Use the Export Data option in Settings to back up your data regularly — this protects you if your browser cache is ever cleared.</p>
+        <p>In Settings you can toggle any habit on or off, rename items to match your own language, adjust point values, and add custom habits to any domain. The activity menu for workouts is fully editable. Core habits will ask for confirmation before being removed since they affect the streak calculation.</p>
       </div>
 
       <div class="how-section" style="border-bottom:none">
-        <div class="how-heading">A note on postpartum progress</div>
-        <p>Weight loss after having a baby is not linear. Breastfeeding, sleep deprivation, and elevated cortisol all affect the scale in ways that have nothing to do with how well you're doing. The trend line on your weight graph matters. Individual weeks don't. A week where you hit 60% of your domains is a good week.</p>
+        <div class="how-heading">Your data and backup</div>
+        <p>Everything is stored locally on your device -- no account, no server, no one else can see it. Use Export Data in Settings regularly to download a backup. If your browser cache is ever cleared, that backup is the only way to restore your history. Google Sheets sync is also available under Settings -- Data if you want a live copy of your data automatically backed up to your own Google Drive.</p>
       </div>
     `;
   });
@@ -4264,6 +5511,12 @@ function init() {
 
   // Update header message daily
   setInterval(updateHeader, 60 * 60 * 1000);
+
+  // Check pending notifications on load and on visibility change
+  setTimeout(() => Notifications.checkPending(), 2000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) Notifications.checkPending();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);

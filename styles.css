@@ -1951,3 +1951,260 @@ textarea.form-input {
   color: var(--text-muted);
   flex-shrink: 0;
 }
+
+/* ─── Optional Feature Cards (Today screen) ─────────────────────────────── */
+
+.today-optional-card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+
+.today-optional-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.optional-card-text {
+  font-size: 14px;
+  color: var(--text);
+  margin: 0;
+}
+
+/* ─── Sleep Tracking ─────────────────────────────────────────────────────── */
+
+.sleep-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.sleep-input-label {
+  font-size: 13px;
+  color: var(--text);
+  flex: 1;
+}
+
+.sleep-logged-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sleep-logged-text {
+  font-size: 14px;
+  color: var(--text);
+}
+
+/* ─── Mood / Energy / Motivation ─────────────────────────────────────────── */
+
+.mood-slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mood-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mood-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mood-slider-name {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.mood-slider-val {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--sage-dark);
+  min-width: 24px;
+  text-align: right;
+}
+
+.mood-range {
+  width: 100%;
+  accent-color: var(--sage);
+  cursor: pointer;
+}
+
+.mood-anchors {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-light);
+}
+
+.mood-logged-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mood-logged-text {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ─── MI Prompt textarea ─────────────────────────────────────────────────── */
+
+.mi-textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--bg);
+  resize: none;
+  box-sizing: border-box;
+}
+
+/* ─── Progress Photos ────────────────────────────────────────────────────── */
+
+.photos-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.photo-thumb {
+  cursor: pointer;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.photo-thumb-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+
+.photo-thumb-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 4px 6px;
+  text-align: center;
+  background: var(--card-bg);
+}
+
+.photo-directions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.photo-directions-list li {
+  font-size: 14px;
+  color: var(--text);
+  padding-left: 18px;
+  position: relative;
+}
+
+.photo-directions-list li::before {
+  content: "–";
+  position: absolute;
+  left: 0;
+  color: var(--sage);
+}
+
+/* ─── Measurement Tracking ───────────────────────────────────────────────── */
+
+.measure-setup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.measure-setup-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--text);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.measure-setup-item:hover {
+  background: var(--hover-bg, rgba(0,0,0,0.03));
+}
+
+.measure-setup-item input[type=checkbox] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--sage);
+}
+
+.measure-body-svg-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 16px;
+}
+
+.measure-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.measure-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.measure-input-label {
+  font-size: 13px;
+  color: var(--text);
+  flex: 1;
+}
+
+.measure-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.settings-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0 8px 0;
+  line-height: 1.5;
+  padding: 0 2px;
+}
+
+.weight-chart-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 6px 0 4px;
+  font-style: italic;
+}
+
+.settings-mode-label {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+}
