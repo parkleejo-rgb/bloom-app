@@ -175,7 +175,7 @@ const Store = {
   getPoints()          { return this.get('points', { total_earned: 0, spendable: 0, history: [] }); },
   savePoints(p)        { this.set('points', p); SheetsSync.schedule(); },
 
-  getGoals()           { return this.get('goals', { name: '', amount: 0, history: [] }); },
+  getGoals()           { return this.get('goals', { name: '', amount: 0, pointsTarget: null, level: null, dateSet: null, history: [] }); },
   saveGoals(g)         { this.set('goals', g); SheetsSync.schedule(); },
 
   getBadges()          { return this.get('badges', {}); },
@@ -347,6 +347,43 @@ const Points = {
 /* ─── Badge System ───────────────────────────────────────────────────────── */
 
 const Badges = {
+  // Workout badge thresholds — used for both award and deactivation recheck
+  WORKOUT_THRESHOLDS: [
+    { id: 'first_workout', min: 1,  strengthOnly: false },
+    { id: 'workouts_10',   min: 10, strengthOnly: false },
+    { id: 'workouts_25',   min: 25, strengthOnly: false },
+    { id: 'strength_5',    min: 5,  strengthOnly: true  },
+    { id: 'strength_20',   min: 20, strengthOnly: true  },
+  ],
+
+  getDeactivated() { return Store.get('badge_deactivated', {}); },
+  saveDeactivated(d) { Store.set('badge_deactivated', d); },
+
+  // Called after any workout change (log or delete). Re-evaluates workout badge status.
+  recheckWorkoutBadges() {
+    const earned     = Store.getBadges();
+    const deact      = this.getDeactivated();
+    const workouts   = Store.getWorkouts();
+    const total      = workouts.length;
+    const strength   = workouts.filter(w => w.priority).length;
+    let changed = false;
+
+    this.WORKOUT_THRESHOLDS.forEach(t => {
+      if (!earned[t.id]) return; // not yet earned, skip
+      const count = t.strengthOnly ? strength : total;
+      const qualifies = count >= t.min;
+      if (!qualifies && !deact[t.id]) {
+        deact[t.id] = true;
+        changed = true;
+      } else if (qualifies && deact[t.id]) {
+        delete deact[t.id];
+        changed = true;
+      }
+    });
+
+    if (changed) this.saveDeactivated(deact);
+  },
+
   check() {
     const earned = Store.getBadges();
     const settings = Store.getSettings();
@@ -401,6 +438,8 @@ const Badges = {
     if (habitKeys.length >= 7)  award('first_full_week');
 
     Store.saveBadges(earned);
+    // Always recheck deactivation state after any award pass
+    this.recheckWorkoutBadges();
     return newly;
   },
 
@@ -539,12 +578,641 @@ const Streak = {
   },
 };
 
+/* ─── Temptation Bundling ────────────────────────────────────────────────── */
+
+const TBUNDLE_PROMPTS = {
+  move_walk:      "What do you like on walks — a podcast, music, a call, or just quiet?",
+  move_strength:  "What makes your workouts feel good — music, a show, silence, working out with someone?",
+  move_other:     "What do you pair with this workout to look forward to it?",
+  move_mobility:  "What helps this feel like downtime — a show, music, or just quiet time?",
+  stress_outside: "What makes outside time feel like a break for you?",
+  nutr_breakfast: "What's already part of your morning you could do this alongside?",
+  nutr_water:     "What do you always do first thing that you could pair this with?",
+  nutr_omega3:    "What's your most automatic morning habit you could stack this onto?",
+  nutr_vitamins:  "What's your most automatic morning habit you could stack this onto?",
+  sleep_bed:      "What helps you wind down — a show, reading, music, something else?",
+};
+
+const TBundle = {
+  getData()            { return Store.get('tbundle', {}); },
+  saveData(d)          { Store.set('tbundle', d); },
+  getLastPromptDate()  { return Store.get('tbundle_lpd', null); },
+  setLastPromptDate(d) { Store.set('tbundle_lpd', d); },
+
+  saveNote(habitId, note) {
+    const d = this.getData();
+    d[habitId] = { ...(d[habitId] || {}), note };
+    this.saveData(d);
+  },
+
+  skip(habitId) {
+    const d = this.getData();
+    d[habitId] = { ...(d[habitId] || {}), skipped: true };
+    this.saveData(d);
+  },
+
+  // Count how many distinct days a habit has been checked
+  _checkCount(habitId) {
+    let count = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k.startsWith('bloom_habits_')) continue;
+      if (Store.get(k.replace('bloom_', ''), {})[habitId]) count++;
+    }
+    return count;
+  },
+
+  // Return the habit id that should show a prompt today (or null)
+  getPromptHabitId(checked, habits) {
+    const today = todayStr();
+    if (this.getLastPromptDate() === today) return null;
+    const data = this.getData();
+    for (const habit of habits) {
+      const id = habit.id;
+      if (!TBUNDLE_PROMPTS[id]) continue;
+      if (data[id]?.note || data[id]?.skipped) continue;
+      if (!checked[id]) continue;
+      if (this._checkCount(id) >= 2) {
+        this.setLastPromptDate(today);
+        return id;
+      }
+    }
+    return null;
+  },
+
+  // Check after a fresh toggle whether a prompt should now appear for this habit
+  shouldPromptNow(habitId) {
+    const today = todayStr();
+    if (!TBUNDLE_PROMPTS[habitId]) return false;
+    if (this.getLastPromptDate() === today) return false;
+    const data = this.getData();
+    if (data[habitId]?.note || data[habitId]?.skipped) return false;
+    if (this._checkCount(habitId) >= 2) {
+      this.setLastPromptDate(today);
+      return true;
+    }
+    return false;
+  },
+};
+
+/* ─── Voice Input ─────────────────────────────────────────────────────────── */
+
+function startVoiceInput(inputEl) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { showToast('Voice input not supported in this browser'); return; }
+  try {
+    const rec = new SR();
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.onresult = e => { inputEl.value = e.results[0][0].transcript; };
+    rec.onerror  = () => showToast('Could not capture voice input');
+    rec.start();
+    showToast('Listening…');
+  } catch { showToast('Voice input unavailable'); }
+}
+
+/* ─── Adaptive Goal Helpers ──────────────────────────────────────────────── */
+
+function suggestPointsTarget(level) {
+  const DEFAULTS = { small: 50, medium: 120, big: 250 };
+  const goals    = Store.getGoals();
+  const history  = (goals.history || []).filter(h => h.level === level && h.pointsTarget);
+
+  const settings = Store.getSettings();
+  const pts      = Store.getPoints();
+  const daysSince = Math.max(7,
+    Math.round((Date.now() - parseDate(settings.appStartDate || todayStr()).getTime()) / 86400000));
+  const dailyAvg = pts.total_earned / daysSince;
+  const ceiling  = Math.max(DEFAULTS[level], Math.round(dailyAvg * 7 * 8)); // 8-week cap
+
+  if (!history.length) return DEFAULTS[level];
+
+  const last = history[history.length - 1];
+  const base = last.abandoned
+    ? Math.round(last.pointsTarget * 0.8)
+    : Math.round(last.pointsTarget * 1.2);
+
+  return Math.min(base, ceiling);
+}
+
+function estimateWeeks(pointsTarget) {
+  const settings  = Store.getSettings();
+  const pts       = Store.getPoints();
+  const daysSince = Math.max(7,
+    Math.round((Date.now() - parseDate(settings.appStartDate || todayStr()).getTime()) / 86400000));
+  const dailyAvg  = pts.total_earned / daysSince;
+  if (dailyAvg < 0.5) return null;
+  const weeks = Math.round(pointsTarget / (dailyAvg * 7));
+  return weeks <= 8 ? weeks : null;
+}
+
+/* ─── Feature 5: Plateau Check-In ────────────────────────────────────────── */
+
+function detectPlateau(weighIns) {
+  // Need at least 4 weigh-ins, each at least 1 week apart
+  if (weighIns.length < 4) return false;
+  const sorted = [...weighIns].sort((a, b) => a.date.localeCompare(b.date));
+  const last4  = sorted.slice(-4);
+  // Check that they span at least 3 weeks (21 days)
+  const spanDays = (parseDate(last4[3].date) - parseDate(last4[0].date)) / 86400000;
+  if (spanDays < 21) return false;
+  const totalLoss = last4[0].weight - last4[3].weight;
+  const weeks     = spanDays / 7;
+  const avgPerWk  = totalLoss / weeks;
+  return avgPerWk < 0.25; // less than 0.25 lbs/week average = plateau
+}
+
+function plateauCheckinDone() {
+  const key  = 'plateau_checkin_week';
+  const ws   = dateStr(getWeekStart());
+  return Store.get(key, '') === ws;
+}
+
+function markPlateauCheckinDone() {
+  Store.set('plateau_checkin_week', dateStr(getWeekStart()));
+}
+
+// Domain averages over last 4 weeks (returns {sleep,nutrition,movement,stress} 0-100)
+function last4WeeksDomainAvgs() {
+  const habits = Store.getHabitDefs().filter(h => h.enabled !== false);
+  const pillars = ['sleep', 'nutrition', 'movement', 'stress'];
+  const weeks4 = Array.from({ length: 4 }, (_, i) => {
+    const ws = new Date(getWeekStart());
+    ws.setDate(ws.getDate() - (7 * (3 - i)));
+    return ws;
+  });
+  const avgs = {};
+  pillars.forEach(p => {
+    let total = 0; let count = 0;
+    weeks4.forEach(ws => {
+      const days = getWeekDays(ws);
+      const activeDays = days.filter(d => d <= todayStr());
+      if (!activeDays.length) return;
+      const scores = computePillarScores(activeDays, habits);
+      total += (scores[p] || 0) * 100;
+      count++;
+    });
+    avgs[p] = count ? Math.round(total / count) : 0;
+  });
+  return avgs;
+}
+
+function openPlateauCheckin() {
+  openModal(body => _plateauStep1(body));
+}
+
+function _plateauStep1(body) {
+  const avgs  = last4WeeksDomainAvgs();
+  const notes = Store.getWeeklyNotes();
+  // last 4 weekly notes
+  const noteEntries = Object.entries(notes)
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .slice(0, 4)
+    .filter(([, v]) => v);
+
+  const domainBars = ['sleep', 'nutrition', 'movement', 'stress'].map(p => {
+    const meta = PILLAR_META[p];
+    const pct  = avgs[p];
+    return `
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
+          <span style="display:flex;align-items:center;gap:5px">
+            <span class="pillar-dot ${meta.dotClass}"></span>${meta.label}
+          </span>
+          <span style="color:var(--text-muted)">${pct}%</span>
+        </div>
+        <div class="progress-bar-wrap" style="height:8px">
+          <div class="progress-bar-fill sage" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const notesHtml = noteEntries.length ? `
+    <div style="margin-top:16px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px">Your recent notes</div>
+      ${noteEntries.map(([ws, text]) => `
+        <div style="margin-bottom:10px">
+          <div style="font-size:11px;color:var(--text-muted)">${formatDateShort(ws)}</div>
+          <div style="font-size:13px;color:var(--text)">${escHtml(text.slice(0, 160))}${text.length > 160 ? '…' : ''}</div>
+        </div>`).join('')}
+    </div>` : '';
+
+  body.innerHTML = `
+    <div class="modal-title" style="font-size:16px">Here's what the last 4 weeks looked like.</div>
+    <div style="margin-top:16px">${domainBars}</div>
+    ${notesHtml}
+    <button class="btn btn-primary btn-full mt-16" id="plateau-continue-btn">Continue</button>
+  `;
+  body.querySelector('#plateau-continue-btn').addEventListener('click', () => _plateauStep2(body));
+}
+
+function _plateauStep2(body) {
+  body.innerHTML = `
+    <button class="btn btn-outline" id="plateau-skip-btn" style="position:absolute;top:12px;right:16px;padding:4px 12px;font-size:13px">Skip</button>
+    <div class="modal-title" style="margin-top:24px">What do you think has been getting in the way?</div>
+    <div style="text-align:center;margin:28px 0">
+      <button class="tbundle-mic" id="plateau-mic-btn" style="width:72px;height:72px;font-size:32px;border-radius:50%;background:var(--sage);color:#fff;border:none;cursor:pointer">🎤</button>
+      <div id="plateau-voice-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+    </div>
+    <div style="text-align:center;margin-bottom:12px">
+      <a id="plateau-type-link" href="#" style="font-size:13px;color:var(--text-muted)">type instead</a>
+    </div>
+    <textarea id="plateau-reflection-input" class="form-input" rows="3" placeholder="Write your thoughts here…" style="display:none;width:100%;box-sizing:border-box"></textarea>
+    <button class="btn btn-primary btn-full mt-8" id="plateau-next-btn" style="display:none">Next</button>
+  `;
+
+  const micBtn     = body.querySelector('#plateau-mic-btn');
+  const typeLink   = body.querySelector('#plateau-type-link');
+  const textarea   = body.querySelector('#plateau-reflection-input');
+  const nextBtn    = body.querySelector('#plateau-next-btn');
+  const statusEl   = body.querySelector('#plateau-voice-status');
+  let   reflection = '';
+
+  body.querySelector('#plateau-skip-btn').addEventListener('click', () => {
+    markPlateauCheckinDone();
+    closeModal();
+  });
+
+  micBtn.addEventListener('click', () => {
+    startVoiceInput({ set value(v) { reflection = v; statusEl.textContent = v ? `"${v.slice(0,60)}…"` : ''; nextBtn.style.display = reflection ? '' : 'none'; } });
+  });
+
+  typeLink.addEventListener('click', e => {
+    e.preventDefault();
+    textarea.style.display = '';
+    nextBtn.style.display  = '';
+    typeLink.style.display = 'none';
+    micBtn.style.display   = 'none';
+    textarea.focus();
+  });
+
+  textarea.addEventListener('input', () => { reflection = textarea.value.trim(); });
+
+  nextBtn.addEventListener('click', () => {
+    reflection = reflection || textarea.value.trim();
+    // Save to this week's notes
+    if (reflection) {
+      const notes = Store.getWeeklyNotes();
+      const wsKey = dateStr(getWeekStart());
+      const label = `Plateau check-in — ${todayStr()}`;
+      const existing = notes[wsKey] || '';
+      notes[wsKey] = existing ? `${existing}\n\n${label}\n${reflection}` : `${label}\n${reflection}`;
+      Store.saveWeeklyNotes(notes);
+    }
+    _plateauStep3(body);
+  });
+}
+
+function _plateauStep3(body) {
+  const options = [
+    { id: 'busy',    label: 'Life got busy or stressful' },
+    { id: 'motiv',   label: "I've lost motivation" },
+    { id: 'right',   label: "I'm doing everything right but nothing's moving" },
+    { id: 'slipped', label: 'My habits have slipped and I know it' },
+    { id: 'unsure',  label: "I'm not sure" },
+  ];
+  body.innerHTML = `
+    <div class="modal-title">What best describes what you're experiencing?</div>
+    <div style="margin-top:16px">
+      ${options.map(o => `
+        <button class="goal-level-opt" data-barrier="${o.id}" style="width:100%;margin-bottom:8px;text-align:left;padding:14px 16px">
+          ${escHtml(o.label)}
+        </button>`).join('')}
+    </div>
+  `;
+  body.querySelectorAll('.goal-level-opt[data-barrier]').forEach(btn => {
+    btn.addEventListener('click', () => _plateauStep4(body, btn.dataset.barrier));
+  });
+}
+
+function _plateauStep4(body, barrier) {
+  const RESPONSES = {
+    busy:    'Pick one core habit to protect this week. Just one. Let everything else be bonus.',
+    motiv:   'Motivation follows action, not the other way around. Start with your easiest core habit for three days.',
+    right:   'Your body is adapting. Try adding one strength session or increasing protein slightly. Give it two more weeks before changing anything else.',
+    slipped: 'Pick your two most important core habits and focus only on those this week. Simplify, don\'t abandon.',
+    unsure:  'Look at your lowest domain bar. That\'s usually where the answer is.',
+  };
+  const intentions = [
+    'Go to bed earlier',
+    'Prep food in advance',
+    'Protect one core habit no matter what',
+    'Add one strength session',
+    'Ask someone for support',
+    'Something else',
+  ];
+  body.innerHTML = `
+    <div style="background:var(--card-bg);border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:14px;line-height:1.5;color:var(--text)">
+      ${escHtml(RESPONSES[barrier] || RESPONSES.unsure)}
+    </div>
+    <div class="modal-title" style="font-size:15px">What's one thing you'll try this week?</div>
+    <div style="margin-top:12px" id="plateau-intentions-list">
+      ${intentions.map((t, i) => `
+        <button class="goal-level-opt" data-idx="${i}" style="width:100%;margin-bottom:8px;text-align:left;padding:12px 16px">
+          ${escHtml(t)}
+        </button>`).join('')}
+    </div>
+    <div id="plateau-custom-input-wrap" style="display:none;margin-top:8px">
+      <textarea id="plateau-custom-intention" class="form-input" rows="2" placeholder="Describe your intention…" style="width:100%;box-sizing:border-box"></textarea>
+      <div style="text-align:center;margin:8px 0">
+        <button class="tbundle-mic" id="plateau-intention-mic" style="width:52px;height:52px;font-size:22px;border-radius:50%;background:var(--sage);color:#fff;border:none;cursor:pointer">🎤</button>
+      </div>
+      <button class="btn btn-primary btn-full" id="plateau-save-custom-btn">Save</button>
+    </div>
+  `;
+
+  function saveIntention(text) {
+    if (text) {
+      const notes  = Store.getWeeklyNotes();
+      const wsKey  = dateStr(getWeekStart());
+      const label  = `Intention — ${todayStr()}`;
+      const existing = notes[wsKey] || '';
+      notes[wsKey] = existing ? `${existing}\n\n${label}\n${text}` : `${label}\n${text}`;
+      Store.saveWeeklyNotes(notes);
+    }
+    markPlateauCheckinDone();
+    closeModal();
+    showToast('Check-in saved', 'success');
+  }
+
+  body.querySelectorAll('.goal-level-opt[data-idx]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx  = parseInt(btn.dataset.idx);
+      const text = intentions[idx];
+      if (idx === 5) { // "Something else"
+        body.querySelector('#plateau-intentions-list').style.display = 'none';
+        body.querySelector('#plateau-custom-input-wrap').style.display = '';
+        body.querySelector('#plateau-intention-mic').addEventListener('click', () => {
+          const inp = body.querySelector('#plateau-custom-intention');
+          startVoiceInput(inp);
+        });
+        body.querySelector('#plateau-save-custom-btn').addEventListener('click', () => {
+          saveIntention(body.querySelector('#plateau-custom-intention').value.trim());
+        });
+      } else {
+        saveIntention(text);
+      }
+    });
+  });
+}
+
+/* ─── Feature 6: Sunday Check-In ─────────────────────────────────────────── */
+
+function sundayCheckinDone() {
+  const key = 'sunday_checkin_week';
+  const ws  = dateStr(getWeekStart());
+  return Store.get(key, '') === ws;
+}
+
+function markSundayCheckinDone() {
+  Store.set('sunday_checkin_week', dateStr(getWeekStart()));
+}
+
+function shouldShowSundayCheckin() {
+  const today = new Date();
+  return today.getDay() === 0 && !sundayCheckinDone() && Store.get('onboarding_complete');
+}
+
+function openSundayCheckin() {
+  openModal(body => _sundayStep1(body));
+}
+
+function _sundayStep1(body) {
+  body.innerHTML = `
+    <button class="btn btn-outline" id="sunday-skip-btn" style="position:absolute;top:12px;right:16px;padding:4px 12px;font-size:13px">Skip</button>
+    <div class="modal-title" style="margin-top:24px">How was your week?</div>
+    <div style="display:flex;gap:10px;margin-top:20px;margin-bottom:8px">
+      ${[['tough','Tough','😔'],['okay','Okay','😐'],['strong','Strong','💪']].map(([v, l, e]) => `
+        <button class="goal-level-opt sunday-week-opt" data-val="${v}" style="flex:1;padding:14px 8px;text-align:center;flex-direction:column">
+          <div style="font-size:24px;margin-bottom:4px">${e}</div>
+          <div style="font-size:14px;font-weight:500">${l}</div>
+        </button>`).join('')}
+    </div>
+  `;
+
+  body.querySelector('#sunday-skip-btn').addEventListener('click', () => {
+    markSundayCheckinDone();
+    closeModal();
+  });
+
+  body.querySelectorAll('.sunday-week-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.val;
+      // Award 1 pt for completing step 1
+      Points.add(1, 'Sunday check-in');
+      // Save to notes
+      const notes  = Store.getWeeklyNotes();
+      const wsKey  = dateStr(getWeekStart());
+      const label  = `Weekly check-in — ${todayStr()}`;
+      const entry  = `Week felt: ${val.charAt(0).toUpperCase() + val.slice(1)}`;
+      const existing = notes[wsKey] || '';
+      notes[wsKey] = existing ? `${existing}\n\n${label}\n${entry}` : `${label}\n${entry}`;
+      Store.saveWeeklyNotes(notes);
+      _sundayStep2(body, wsKey, label, existing ? `${existing}\n\n${label}\n${entry}` : `${label}\n${entry}`);
+    });
+  });
+}
+
+function _sundayStep2(body, wsKey, existingLabel, existingNote) {
+  body.innerHTML = `
+    <button class="btn btn-outline" id="sunday-skip2-btn" style="position:absolute;top:12px;right:16px;padding:4px 12px;font-size:13px">Skip</button>
+    <div class="modal-title" style="margin-top:24px">What will you do differently next week?</div>
+    <div style="text-align:center;margin:28px 0">
+      <button class="tbundle-mic" id="sunday-mic-btn" style="width:72px;height:72px;font-size:32px;border-radius:50%;background:var(--sage);color:#fff;border:none;cursor:pointer">🎤</button>
+      <div id="sunday-voice-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+    </div>
+    <div style="text-align:center;margin-bottom:12px">
+      <a id="sunday-type-link" href="#" style="font-size:13px;color:var(--text-muted)">type instead</a>
+    </div>
+    <textarea id="sunday-reflection-input" class="form-input" rows="3" placeholder="Write your thoughts here…" style="display:none;width:100%;box-sizing:border-box"></textarea>
+    <button class="btn btn-primary btn-full mt-8" id="sunday-save-btn" style="display:none">Done — save my check-in</button>
+  `;
+
+  let reflection = '';
+  const statusEl = body.querySelector('#sunday-voice-status');
+  const textarea = body.querySelector('#sunday-reflection-input');
+  const saveBtn  = body.querySelector('#sunday-save-btn');
+
+  body.querySelector('#sunday-skip2-btn').addEventListener('click', () => {
+    markSundayCheckinDone();
+    closeModal();
+    showToast('+1 pt for your check-in', 'success');
+  });
+
+  body.querySelector('#sunday-mic-btn').addEventListener('click', () => {
+    startVoiceInput({ set value(v) {
+      reflection = v;
+      statusEl.textContent = v ? `"${v.slice(0, 60)}${v.length > 60 ? '…' : ''}"` : '';
+      saveBtn.style.display = reflection ? '' : 'none';
+    }});
+  });
+
+  body.querySelector('#sunday-type-link').addEventListener('click', e => {
+    e.preventDefault();
+    textarea.style.display   = '';
+    saveBtn.style.display    = '';
+    body.querySelector('#sunday-type-link').style.display = 'none';
+    body.querySelector('#sunday-mic-btn').style.display   = 'none';
+    textarea.focus();
+  });
+
+  textarea.addEventListener('input', () => { reflection = textarea.value.trim(); });
+
+  saveBtn.addEventListener('click', () => {
+    reflection = reflection || textarea.value.trim();
+    if (reflection) {
+      const notes = Store.getWeeklyNotes();
+      const note  = notes[wsKey] || '';
+      notes[wsKey] = note ? `${note}\n\nNext week: ${reflection}` : `Next week: ${reflection}`;
+      Store.saveWeeklyNotes(notes);
+    }
+    // Award 2 more points (total 3 for completing both steps)
+    Points.add(2, 'Sunday check-in completion');
+    markSundayCheckinDone();
+    closeModal();
+    celebrate('✨', 'Check-in complete. +3 pts.');
+  });
+}
+
+/* ─── Retroactive Logging ─────────────────────────────────────────────────── */
+
+function openRetroDatePicker() {
+  openModal(body => {
+    const today = new Date();
+    const options = [];
+    const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      const ds = dateStr(d);
+      const checked = Store.getHabits(ds);
+      const habits  = Store.getHabitDefs().filter(h => h.enabled !== false);
+      const doneCount = habits.filter(h => checked[h.id]).length;
+      const label = `${dayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}`;
+      options.push({ ds, label, doneCount, total: habits.length });
+    }
+
+    body.innerHTML = `
+      <div class="modal-title">Log a Past Day</div>
+      <p class="text-small text-muted mb-12">Select a day to log habits for:</p>
+      <div class="retro-date-list">
+        ${options.map(o => `
+          <button class="retro-date-btn" data-date="${o.ds}">
+            <span class="retro-date-label">${o.label}</span>
+            <span class="retro-date-count">${o.doneCount > 0 ? `${o.doneCount}/${o.total} logged` : 'Nothing logged'}</span>
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    body.querySelectorAll('.retro-date-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        openRetroChecklist(btn.dataset.date);
+      });
+    });
+  });
+}
+
+function openRetroChecklist(retroDate) {
+  openModal(body => {
+    const habits  = Store.getHabitDefs().filter(h => h.enabled !== false);
+    const checked = Store.getHabits(retroDate);
+
+    const d = parseDate(retroDate);
+    const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const dateLabel = `${dayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}`;
+
+    const CORE_IDS = CORE_HABIT_IDS;
+
+    let listHtml = '';
+    // Core habits
+    const coreHabits  = habits.filter(h => CORE_IDS.includes(h.id));
+    const bonusHabits = habits.filter(h => !CORE_IDS.includes(h.id));
+
+    if (coreHabits.length) {
+      listHtml += `<div class="retro-section-label">Daily Commitments</div>`;
+      coreHabits.forEach(h => {
+        listHtml += `
+          <label class="retro-habit-row ${checked[h.id] ? 'checked' : ''}">
+            <input type="checkbox" data-habit="${h.id}" data-pts="${h.points}" ${checked[h.id] ? 'checked' : ''}>
+            <span class="retro-habit-label">${escHtml(h.label)}</span>
+            <span class="retro-habit-pts">${h.points}pt${h.points > 1 ? 's' : ''}</span>
+          </label>`;
+      });
+    }
+
+    const pillars = ['sleep','nutrition','movement','stress'];
+    pillars.forEach(pillar => {
+      const ph = bonusHabits.filter(h => h.pillar === pillar);
+      if (!ph.length) return;
+      const meta = PILLAR_META[pillar];
+      listHtml += `<div class="retro-section-label">${meta.label}</div>`;
+      ph.forEach(h => {
+        listHtml += `
+          <label class="retro-habit-row ${checked[h.id] ? 'checked' : ''}">
+            <input type="checkbox" data-habit="${h.id}" data-pts="${h.points}" ${checked[h.id] ? 'checked' : ''}>
+            <span class="retro-habit-label">${escHtml(h.label)}</span>
+            <span class="retro-habit-pts">${h.points}pt${h.points > 1 ? 's' : ''}</span>
+          </label>`;
+      });
+    });
+
+    body.innerHTML = `
+      <div class="modal-title">${dateLabel}</div>
+      <p class="text-small text-muted mb-12">Check off everything you did that day. Points will be awarded for new check-ins.</p>
+      <div class="retro-habit-list">${listHtml}</div>
+      <button class="btn btn-primary btn-full mt-16" id="retro-save-btn">Save</button>
+    `;
+
+    // Toggle checked styling live
+    body.querySelectorAll('.retro-habit-row input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        cb.closest('.retro-habit-row').classList.toggle('checked', cb.checked);
+      });
+    });
+
+    body.querySelector('#retro-save-btn').addEventListener('click', () => {
+      const prevChecked = Store.getHabits(retroDate);
+      const newChecked  = { ...prevChecked };
+      let ptsEarned = 0;
+
+      body.querySelectorAll('.retro-habit-row input[type=checkbox]').forEach(cb => {
+        const hid = cb.dataset.habit;
+        const pts = parseInt(cb.dataset.pts) || 1;
+        if (cb.checked && !prevChecked[hid]) {
+          // Newly checked — award points
+          newChecked[hid] = true;
+          Points.add(pts, `Retro: ${hid} (${retroDate})`);
+          ptsEarned += pts;
+        } else if (!cb.checked && prevChecked[hid]) {
+          // Unchecked retroactively — deduct
+          delete newChecked[hid];
+          Points.deduct(pts, `Retro uncheck: ${hid} (${retroDate})`);
+        }
+      });
+
+      Store.saveHabits(retroDate, newChecked);
+      Streak.recompute();
+      closeModal();
+      updatePointsBadge();
+      if (currentScreen === 'today') renderToday();
+      if (currentScreen === 'week') renderWeek();
+
+      if (ptsEarned > 0) {
+        showToast(`+${ptsEarned} pt${ptsEarned !== 1 ? 's' : ''} logged for ${dateLabel}`, 'success');
+      } else {
+        showToast('Day updated');
+      }
+    });
+  });
+}
+
 /* ─── Navigation ─────────────────────────────────────────────────────────── */
 
 let currentScreen = 'today';
 let weightChart = null;
-let rationaleVisible = false;
-let rationaleTimer = null;
 
 function navigate(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -624,22 +1292,85 @@ function hideRationale() {
 
 /* ─── TODAY Screen ───────────────────────────────────────────────────────── */
 
-function buildHabitItemHtml(habit, checked, isCore) {
-  const isChecked  = !!checked[habit.id];
-  const extra      = habit.retroactive ? '<span class="text-small text-muted"> (for last night)</span>' : '';
-  const workoutTag = habit.opensWorkout && !habit.priority ? '<span class="habit-badge">Logs workout</span>' : '';
-  const coreDot    = isCore
+// Returns number of consecutive days (going back from yesterday) that habit was NOT checked.
+// Returns 0 if checked yesterday (or no data). Caps scan at 60 days.
+function getNeglectedDays(habitId) {
+  const today = todayStr();
+  let days = 0;
+  for (let i = 1; i <= 60; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const ds = dateStr(d);
+    const checkedDay = Store.getHabits(ds);
+    if (checkedDay[habitId]) return days; // was checked on this day
+    days++;
+  }
+  return days; // never checked in last 60 days
+}
+
+function buildHabitItemHtml(habit, checked, isCore, bundleEntry, isPromptActive, neglectDays) {
+  const id            = habit.id;
+  const isChecked     = !!checked[id];
+  const bundleNote    = bundleEntry?.note    || null;
+  const bundleSkipped = bundleEntry?.skipped || false;
+  const extra         = habit.retroactive ? '<span class="text-small text-muted"> (for last night)</span>' : '';
+  const workoutTag    = habit.opensWorkout && !habit.priority ? '<span class="habit-badge">Logs workout</span>' : '';
+  const coreDot       = isCore
     ? '<span class="core-dot core-dot-filled" aria-hidden="true">●</span>'
     : '<span class="core-dot core-dot-empty"  aria-hidden="true">○</span>';
+
+  // Detail panel content (rationale + bundle note + core tag)
+  const bf          = Store.getSettings().breastfeeding;
+  const rationale   = (bf && HABIT_RATIONALE_BF[id]) || HABIT_RATIONALE[id] || '';
+  const noteHtml    = bundleNote ? `<p class="bundle-note-display">${escHtml(bundleNote)}</p>` : '';
+  const rationaleHtml = rationale ? `<p class="habit-detail-rationale">${escHtml(rationale)}</p>` : '';
+  const coreTagHtml = isCore ? `<p class="habit-detail-core">Core commitment</p>` : '';
+  // hasDetail superseded by hasDetailFinal below (after neglect check)
+
+  // Bundle prompt card — always rendered for eligible habits (CSS hides; has-prompt class shows)
+  const promptQ         = TBUNDLE_PROMPTS[id];
+  const eligiblePrompt  = promptQ && !bundleNote && !bundleSkipped;
+  const promptHtml      = eligiblePrompt ? `
+    <div class="tbundle-prompt">
+      <p class="tbundle-question">${escHtml(promptQ)}</p>
+      <div class="tbundle-input-row">
+        <input class="tbundle-text" type="text" placeholder="Type here…" autocomplete="off" maxlength="120">
+        <button class="tbundle-mic" type="button" title="Voice input">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+        </button>
+      </div>
+      <button class="tbundle-skip-btn" type="button">Skip</button>
+    </div>` : '';
+
+  // Neglect indicator
+  const isNeglected = (neglectDays || 0) >= 7 && !isChecked;
+  const neglectHtml  = isNeglected
+    ? `<p class="habit-detail-neglect">You haven't done this in ${neglectDays} day${neglectDays !== 1 ? 's' : ''}.</p>`
+    : '';
+  const hasDetailFinal = !!(bundleNote || rationale || isCore || isNeglected);
+
+  const itemCls = ['habit-item', isChecked ? 'checked' : '', isPromptActive ? 'has-prompt' : '', isNeglected ? 'habit-neglected' : '']
+    .filter(Boolean).join(' ');
+
   return `
-    <div class="habit-item ${isChecked ? 'checked' : ''}" data-habit="${habit.id}" data-opens-workout="${habit.opensWorkout}" data-priority="${habit.priority}">
-      ${coreDot}
-      <div class="habit-check"></div>
-      <div class="habit-text">${habit.label}${extra}</div>
-      ${workoutTag}
-      <div class="habit-points">${habit.points}pt${habit.points > 1 ? 's' : ''}</div>
-    </div>
-  `;
+    <div class="${itemCls}" data-habit="${id}" data-opens-workout="${habit.opensWorkout}" data-priority="${habit.priority}">
+      <div class="habit-main-row">
+        ${coreDot}
+        <div class="habit-check-zone"><div class="habit-check"></div></div>
+        <div class="habit-tap-zone">
+          <div class="habit-text">${escHtml(habit.label)}${extra}</div>
+          ${workoutTag}
+          <div class="habit-points">${habit.points}pt${habit.points > 1 ? 's' : ''}</div>
+          ${hasDetailFinal ? `<svg class="habit-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>` : ''}
+        </div>
+      </div>
+      ${hasDetailFinal ? `<div class="habit-detail">${neglectHtml}${noteHtml}${rationaleHtml}${coreTagHtml}</div>` : ''}
+      ${promptHtml}
+    </div>`;
 }
 
 function renderToday() {
@@ -647,6 +1378,14 @@ function renderToday() {
   const today   = todayStr();
   const checked = Store.getHabits(today);
   const habits  = Store.getHabitDefs().filter(h => h.enabled !== false);
+
+  // Temptation bundling
+  const bundleData    = TBundle.getData();
+  const promptHabitId = TBundle.getPromptHabitId(checked, habits);
+
+  // Neglected habit days (computed once for all habits)
+  const neglectMap = {};
+  habits.forEach(h => { neglectMap[h.id] = getNeglectedDays(h.id); });
 
   // Streak + core progress
   const streakData        = Streak.recompute();
@@ -691,70 +1430,99 @@ function renderToday() {
     </div>
   `;
 
-  // Habit groups per pillar
-  pillars.forEach(pillar => {
-    const meta  = PILLAR_META[pillar];
-    const items = habits.filter(h => h.pillar === pillar);
-    if (!items.length) return;
+  // Top section: all core habits
+  const coreHabits = habits.filter(h => CORE_HABIT_IDS.includes(h.id));
+  if (coreHabits.length) {
+    html += `
+      <div class="habit-group">
+        <div class="pillar-header">
+          <div class="pillar-label">Your Daily Commitments</div>
+        </div>
+    `;
+    coreHabits.forEach(h => {
+      html += buildHabitItemHtml(h, checked, true, bundleData[h.id] || null, promptHabitId === h.id, neglectMap[h.id]);
+    });
+    html += `</div>`;
+  }
 
-    const coreItems  = items.filter(h => CORE_HABIT_IDS.includes(h.id));
-    const bonusItems = items.filter(h => !CORE_HABIT_IDS.includes(h.id));
-    const pillarDone = items.filter(h => checked[h.id]).length;
-    const hasBothSections = coreItems.length > 0 && bonusItems.length > 0;
+  // Domain sections: bonus habits only, completion counts include cores
+  pillars.forEach(pillar => {
+    const meta       = PILLAR_META[pillar];
+    const allItems   = habits.filter(h => h.pillar === pillar);
+    const bonusItems = allItems.filter(h => !CORE_HABIT_IDS.includes(h.id));
+    if (!bonusItems.length) return;
+
+    const pillarDone = allItems.filter(h => checked[h.id]).length;
 
     html += `
       <div class="habit-group">
         <div class="pillar-header">
           <div class="pillar-dot ${meta.dotClass}"></div>
           <div class="pillar-label">${meta.label}</div>
-          <div id="pillar-count-${pillar}" class="pillar-count">${pillarDone} of ${items.length} done</div>
+          <div id="pillar-count-${pillar}" class="pillar-count">${pillarDone} of ${allItems.length} done</div>
         </div>
     `;
 
-    if (coreItems.length) {
-      html += `<div class="habit-subgroup-label commitments-label">Your commitments</div>`;
-      coreItems.forEach(h => { html += buildHabitItemHtml(h, checked, true); });
-    }
-
-    if (bonusItems.length) {
-      if (hasBothSections) {
-        html += `<div class="habit-subgroup-label bonus-label">Bonus</div>`;
-      }
-      bonusItems.forEach(h => { html += buildHabitItemHtml(h, checked, false); });
-    }
+    bonusItems.forEach(h => {
+      html += buildHabitItemHtml(h, checked, false, bundleData[h.id] || null, promptHabitId === h.id, neglectMap[h.id]);
+    });
 
     html += `</div>`;
   });
 
+  // Retroactive logging link
+  html += `<div class="retro-log-row"><button class="btn-text-link" id="retro-log-btn">Log a past day</button></div>`;
+
   screen.innerHTML = html;
 
-  // Attach habit click + long-press events
+  screen.querySelector('#retro-log-btn')?.addEventListener('click', openRetroDatePicker);
+
+  // Habit events: check-zone → toggle, tap-zone → expand detail, prompt handlers
   screen.querySelectorAll('.habit-item').forEach(item => {
-    let pressTimer = null;
-    let wasLongPress = false;
+    const id = item.dataset.habit;
 
-    const startPress = () => {
-      wasLongPress = false;
-      pressTimer = setTimeout(() => {
-        wasLongPress = true;
-        const habits = Store.getHabitDefs();
-        const h = habits.find(x => x.id === item.dataset.habit);
-        showRationale(item.dataset.habit, h?.label || '');
-      }, 500);
-    };
-    const cancelPress = () => clearTimeout(pressTimer);
-
-    item.addEventListener('touchstart',  startPress,  { passive: true });
-    item.addEventListener('touchend',    cancelPress);
-    item.addEventListener('touchmove',   cancelPress);
-    item.addEventListener('mousedown',   startPress);
-    item.addEventListener('mouseup',     cancelPress);
-    item.addEventListener('mouseleave',  cancelPress);
-
-    item.addEventListener('click', () => {
-      if (wasLongPress) { wasLongPress = false; return; }
-      if (rationaleVisible) { hideRationale(); return; }
+    // Checkbox zone: toggle check
+    item.querySelector('.habit-check-zone')?.addEventListener('click', e => {
+      e.stopPropagation();
       toggleHabit(item);
+    });
+
+    // Tap zone: expand/collapse detail panel
+    item.querySelector('.habit-tap-zone')?.addEventListener('click', () => {
+      const detail = item.querySelector('.habit-detail');
+      if (detail) item.classList.toggle('expanded');
+    });
+
+    // Bundle prompt: skip
+    item.querySelector('.tbundle-skip-btn')?.addEventListener('click', e => {
+      e.stopPropagation();
+      TBundle.skip(id);
+      item.classList.remove('has-prompt');
+    });
+
+    // Bundle prompt: text input save
+    const tbInput = item.querySelector('.tbundle-text');
+    if (tbInput) {
+      let saved = false;
+      const saveBundle = () => {
+        if (saved) return;
+        const val = tbInput.value.trim();
+        if (!val) return;
+        saved = true;
+        TBundle.saveNote(id, val);
+        renderToday();
+        showToast('Saved', 'success');
+      };
+      tbInput.addEventListener('click',   e => e.stopPropagation());
+      tbInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBundle(); } });
+      tbInput.addEventListener('blur',    saveBundle);
+    }
+
+    // Bundle prompt: mic button
+    item.querySelector('.tbundle-mic')?.addEventListener('click', e => {
+      e.stopPropagation();
+      const inp = item.querySelector('.tbundle-text');
+      if (inp) startVoiceInput(inp);
     });
   });
 }
@@ -828,6 +1596,12 @@ function toggleHabit(item) {
     }
 
     updateStreakDisplay();
+
+    // Reveal bundle prompt if newly eligible
+    if (TBundle.shouldPromptNow(id)) {
+      item.classList.add('has-prompt');
+      setTimeout(() => item.querySelector('.tbundle-text')?.focus(), 200);
+    }
 
     if (habit.opensWorkout) {
       setTimeout(() => openWorkoutModal(habit.priority ? 'strength' : null), 300);
@@ -1006,29 +1780,28 @@ function renderWeek() {
 }
 
 function renderSavingsBar(points, goals, settings) {
-  const rate = settings.pointsConversionRate || 0.50;
-  const spendableDollars = (points.spendable * rate);
-  const totalDollars     = (points.total_earned * rate);
-  const goalAmt  = goals.amount || 0;
-  const goalName = goals.name || 'your next goal';
-  const pct = goalAmt > 0 ? Math.min(100, Math.round((spendableDollars / goalAmt) * 100)) : 0;
-  const weekPts  = Points.thisWeekTotal();
+  const spendablePts = points.spendable;
+  const weekPts      = Points.thisWeekTotal();
+  const goalName     = goals.name || 'your next goal';
+  const ptsTarget    = goals.pointsTarget || 0;
+
+  const pct     = ptsTarget > 0 ? Math.min(100, Math.round((spendablePts / ptsTarget) * 100)) : 0;
+  const reached = ptsTarget > 0 && spendablePts >= ptsTarget;
 
   let html = `<div class="card">`;
-  html += `<div class="card-title">Savings Progress</div>`;
+  html += `<div class="card-title">Reward Progress</div>`;
 
   if (!goals.name) {
-    html += `<p class="text-muted text-small">No goal set yet.</p>`;
+    html += `<p class="text-muted text-small">No reward goal set yet.</p>`;
     html += `<button class="btn btn-sm btn-primary mt-8" id="set-goal-btn">Set a goal</button>`;
   } else {
-    const reached = spendableDollars >= goalAmt && goalAmt > 0;
-
-    html += `<div class="savings-goal-name">${goalName}</div>`;
+    html += `<div class="savings-goal-name">${escHtml(goalName)}</div>`;
     html += `
       <div class="savings-amounts">
-        <span>$${spendableDollars.toFixed(2)} available</span>
-        <span>Goal: $${goalAmt.toFixed(2)}</span>
-      </div>
+        <span>${spendablePts} of ${ptsTarget} pts</span>
+      </div>`;
+
+    html += `
       <div class="progress-bar-wrap">
         <div class="progress-bar-fill sage" style="width:${pct}%"></div>
       </div>
@@ -1040,8 +1813,7 @@ function renderSavingsBar(points, goals, settings) {
         <div style="background:#D9EFDA;border-radius:8px;padding:12px;margin-top:10px;text-align:center">
           <div style="font-weight:600;color:#3D8040;margin-bottom:4px">You earned it. Go get it.</div>
           <button class="btn btn-sm btn-primary" id="cashout-btn">Cash Out</button>
-        </div>
-      `;
+        </div>`;
     } else {
       html += `<button class="btn btn-sm btn-outline mt-8" id="set-goal-btn">Change goal</button>`;
     }
@@ -1074,10 +1846,8 @@ function renderSavingsBar(points, goals, settings) {
 
   html += `
     <div class="savings-points-breakdown">
-      <div class="row"><span>Points this week</span><span class="val">${weekPts} pts ($${(weekPts * rate).toFixed(2)})</span></div>
+      <div class="row"><span>Points this week</span><span class="val">${weekPts} pts</span></div>
       <div class="row"><span>Total points earned (all time)</span><span class="val">${points.total_earned} pts</span></div>
-      <div class="row"><span>Total dollars earned (all time)</span><span class="val">$${totalDollars.toFixed(2)}</span></div>
-      <div class="row"><span>Available to spend</span><span class="val">$${spendableDollars.toFixed(2)}</span></div>
       ${recentEvents.length ? `
         <details style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
           <summary style="font-size:12px;color:var(--text-muted);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">
@@ -1212,14 +1982,14 @@ function renderExercise() {
       const dot = w.priority ? 'priority' : '';
       const tag = w.priority ? '<span class="priority-tag">Strength</span>' : '';
       html += `
-        <div class="workout-entry">
+        <div class="workout-entry" data-workout-id="${w.id}">
           <div class="workout-type-dot ${dot}"></div>
           <div class="workout-info">
             <div class="workout-type-name">${escHtml(w.activityLabel)}${tag}</div>
-            <div class="workout-meta">${w.duration} min · ${w.intensity}</div>
+            <div class="workout-meta">${w.duration} min · ${w.intensity} · ${formatDateShort(w.date)}</div>
             ${w.note ? `<div class="workout-note">${escHtml(w.note)}</div>` : ''}
           </div>
-          <div class="workout-date">${formatDateShort(w.date)}</div>
+          <button class="workout-delete-btn" data-id="${w.id}" title="Delete workout" aria-label="Delete workout">✕</button>
         </div>
       `;
     });
@@ -1228,6 +1998,19 @@ function renderExercise() {
 
   screen.innerHTML = html;
   screen.querySelector('#log-workout-btn')?.addEventListener('click', () => openWorkoutModal(null));
+
+  screen.querySelectorAll('.workout-delete-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      if (!confirm('Delete this workout?')) return;
+      const updated = Store.getWorkouts().filter(w => w.id !== id);
+      Store.saveWorkouts(updated);
+      Badges.recheckWorkoutBadges();
+      renderExercise();
+      if (currentScreen === 'progress') renderProgress();
+    });
+  });
 }
 
 /* ─── PROGRESS Screen ────────────────────────────────────────────────────── */
@@ -1286,16 +2069,30 @@ function renderProgress() {
   }
   html += `</div>`;
 
+  // Plateau check-in banner (non-BF only, 4+ weigh-ins, not already done this week)
+  if (!settings.breastfeeding && detectPlateau(weighIns) && !plateauCheckinDone()) {
+    html += `
+      <div class="plateau-banner" id="plateau-banner">
+        <div class="plateau-banner-text">Your trend line has been flat for 4 weeks. Take a moment to check in.</div>
+        <button class="btn btn-sm btn-primary mt-8" id="plateau-checkin-btn">Check in</button>
+      </div>`;
+  }
+
   // Badges
+  const deactivatedBadges = Badges.getDeactivated();
   html += `<div class="screen-section-title">Milestones</div>`;
   html += `<div class="card">`;
   html += `<div class="badges-grid">`;
   BADGE_DEFINITIONS.forEach(b => {
-    const isEarned = !!earned[b.id];
+    const isEarned     = !!earned[b.id];
+    const isDeactivated = isEarned && !!deactivatedBadges[b.id];
+    const cls = isDeactivated ? 'earned deactivated' : isEarned ? 'earned' : 'locked';
+    const titleSuffix = isDeactivated ? ' · Complete more workouts to reactivate' : isEarned ? ` · Earned ${earned[b.id]}` : '';
     html += `
-      <div class="badge-item ${isEarned ? 'earned' : 'locked'}" title="${b.label}${isEarned ? ` · Earned ${earned[b.id]}` : ''}">
+      <div class="badge-item ${cls}" title="${b.label}${titleSuffix}">
         <div class="badge-icon">${b.icon}</div>
         <div class="badge-label">${b.label}</div>
+        ${isDeactivated ? `<div class="badge-deactivated-note">Reactivate</div>` : ''}
       </div>
     `;
   });
@@ -1340,16 +2137,19 @@ function renderProgress() {
 
   // Rewards history
   if (goals.history && goals.history.length > 0) {
-    html += `<div class="screen-section-title">Rewards Cashed Out</div>`;
+    html += `<div class="screen-section-title">Rewards Earned</div>`;
     html += `<div class="card">`;
     [...goals.history].reverse().forEach(r => {
+      const ptsEarned  = r.points || 0;
+      const ptsTarget  = r.pointsTarget || null;
+      const ptsDisplay = ptsTarget ? `${ptsEarned} / ${ptsTarget} pts` : `${ptsEarned} pts`;
       html += `
         <div class="reward-entry">
           <div>
             <div class="reward-name">${escHtml(r.name)}</div>
             <div class="reward-meta">${formatDateShort(r.date)}</div>
           </div>
-          <div class="reward-amount">$${parseFloat(r.amount).toFixed(2)}</div>
+          <div class="reward-amount">${ptsDisplay}</div>
         </div>
       `;
     });
@@ -1374,6 +2174,9 @@ function renderProgress() {
   }
 
   screen.innerHTML = html;
+
+  // Plateau check-in button
+  screen.querySelector('#plateau-checkin-btn')?.addEventListener('click', openPlateauCheckin);
 
   // Init chart after DOM is ready
   if (weighIns.length >= 2) {
@@ -1597,17 +2400,9 @@ function renderSettings() {
     <div class="settings-section">
       <div class="settings-section-title">Rewards</div>
       <div class="settings-group">
-        <div class="settings-row">
-          <div class="settings-row-label">Points conversion rate</div>
-          <div style="display:flex;align-items:center;gap:4px">
-            <span style="font-size:14px;color:var(--text-muted)">$</span>
-            <input class="settings-row-input" id="s-rate" type="number" step="0.05" min="0.05" placeholder="0.50" value="${s.pointsConversionRate || 0.50}" style="max-width:80px">
-            <span style="font-size:14px;color:var(--text-muted)">/pt</span>
-          </div>
-        </div>
         <div class="settings-btn-row" id="s-set-goal">
-          <div class="settings-btn-label">Set savings goal</div>
-          <div class="settings-btn-desc">Name your clothing goal and dollar target</div>
+          <div class="settings-btn-label">Set reward goal</div>
+          <div class="settings-btn-desc">Name your reward goal and set a points target</div>
         </div>
         <div class="settings-btn-row" id="s-manual-points">
           <div class="settings-btn-label">Manual point adjustment</div>
@@ -1664,7 +2459,6 @@ function renderSettings() {
     ['s-bedtime',       'bedtimeTarget',          'text'],
     ['s-eat-cutoff',    'eatCutoff',              'text'],
     ['s-caffeine-cutoff','caffeineCutoff',        'text'],
-    ['s-rate',          'pointsConversionRate',   'number'],
   ];
 
   fields.forEach(([elId, key, type]) => {
@@ -1761,7 +2555,7 @@ function closeModal() {
 let workoutDraft = { activityId: null, activityLabel: null, priority: false, duration: 30, intensity: 'Moderate', note: '' };
 
 function openWorkoutModal(presetActivity) {
-  workoutDraft = { activityId: presetActivity, activityLabel: null, priority: false, duration: 30, intensity: 'Moderate', note: '' };
+  workoutDraft = { activityId: presetActivity, activityLabel: null, priority: false, duration: 30, intensity: 'Moderate', note: '', date: todayStr() };
   if (presetActivity === 'strength') {
     workoutDraft.activityId = 'strength';
     workoutDraft.activityLabel = 'Strength training';
@@ -1789,11 +2583,54 @@ function renderWorkoutStep1(body) {
 
   body.querySelectorAll('.activity-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (btn.dataset.id === 'other') {
+        openWorkoutOtherStep(body);
+        return;
+      }
       workoutDraft.activityId    = btn.dataset.id;
       workoutDraft.activityLabel = btn.dataset.label;
       workoutDraft.priority      = btn.dataset.priority === 'true';
       openModal(renderWorkoutStep2);
     });
+  });
+}
+
+function openWorkoutOtherStep(body) {
+  body.innerHTML = `
+    <div class="modal-title">Other Activity</div>
+    <div class="step-label">What did you do?</div>
+    <input type="text" class="form-input mb-8" id="other-activity-input" placeholder="e.g. Hiking, Swimming, Dance…" maxlength="50" autocomplete="off">
+    <p class="text-small text-muted mb-16">This will be saved to your activity menu for future sessions.</p>
+    <button class="btn btn-primary btn-full" id="other-activity-save">Continue</button>
+    <button class="btn btn-outline btn-full mt-8" id="other-activity-back">Back</button>
+  `;
+
+  const input = body.querySelector('#other-activity-input');
+  input.focus();
+
+  body.querySelector('#other-activity-back').addEventListener('click', () => openModal(renderWorkoutStep1));
+
+  body.querySelector('#other-activity-save').addEventListener('click', () => {
+    const label = input.value.trim();
+    if (!label) { showToast('Please enter an activity name'); return; }
+
+    // Save to activity defs if not already there
+    const activities = Store.getActivityDefs();
+    const exists = activities.find(a => a.label.toLowerCase() === label.toLowerCase());
+    let actId;
+    if (exists) {
+      actId = exists.id;
+      workoutDraft.priority = exists.priority;
+    } else {
+      actId = 'custom_' + Date.now();
+      activities.push({ id: actId, label, priority: false, custom: true });
+      Store.saveActivityDefs(activities);
+    }
+
+    workoutDraft.activityId    = actId;
+    workoutDraft.activityLabel = label;
+    workoutDraft.priority      = workoutDraft.priority || false;
+    openModal(renderWorkoutStep2);
   });
 }
 
@@ -1811,6 +2648,8 @@ function renderWorkoutStep2(body) {
     </div>
     <div class="step-label">Note (optional)</div>
     <input type="text" class="form-input mb-16" id="workout-note" placeholder="Any notes…" maxlength="100" value="${escHtml(workoutDraft.note)}">
+    <div class="step-label">Date</div>
+    <input type="date" class="form-input mb-16" id="workout-date" value="${workoutDraft.date}" max="${todayStr()}">
     <button class="btn btn-primary btn-full" id="save-workout-btn">Save Workout</button>
   `;
 
@@ -1833,14 +2672,19 @@ function renderWorkoutStep2(body) {
     workoutDraft.note = e.target.value;
   });
 
+  body.querySelector('#workout-date').addEventListener('change', e => {
+    workoutDraft.date = e.target.value || todayStr();
+  });
+
   body.querySelector('#save-workout-btn').addEventListener('click', saveWorkout);
 }
 
 function saveWorkout() {
   const note = document.querySelector('#workout-note')?.value || workoutDraft.note;
+  const workoutDate = workoutDraft.date || todayStr();
   const workout = {
     id: Date.now().toString(),
-    date: todayStr(),
+    date: workoutDate,
     activityId: workoutDraft.activityId,
     activityLabel: workoutDraft.activityLabel || 'Workout',
     priority: workoutDraft.priority,
@@ -1859,23 +2703,13 @@ function saveWorkout() {
   closeModal();
   showToast(`Workout logged! +${pts} pt${pts > 1 ? 's' : ''}`, 'success');
 
-  // Update today's habit if strength
-  if (workout.priority) {
-    const today = todayStr();
-    const checked = Store.getHabits(today);
-    if (!checked['move_strength']) {
-      checked['move_strength'] = true;
-      Store.saveHabits(today, checked);
-      if (currentScreen === 'today') renderToday();
-    }
-  } else {
-    const today = todayStr();
-    const checked = Store.getHabits(today);
-    if (!checked['move_other']) {
-      checked['move_other'] = true;
-      Store.saveHabits(today, checked);
-      if (currentScreen === 'today') renderToday();
-    }
+  // Update habit for the workout date
+  const habitKey = workout.priority ? 'move_strength' : 'move_other';
+  const hChecked = Store.getHabits(workoutDate);
+  if (!hChecked[habitKey]) {
+    hChecked[habitKey] = true;
+    Store.saveHabits(workoutDate, hChecked);
+    if (workoutDate === todayStr() && currentScreen === 'today') renderToday();
   }
 
   const newBadges = Badges.check();
@@ -1937,78 +2771,146 @@ function openWeighInModal() {
 /* ── Goal Modal ── */
 
 function openGoalModal() {
-  const goals = Store.getGoals();
-  openModal(body => {
-    body.innerHTML = `
-      <div class="modal-title">Set Savings Goal</div>
-      <div class="form-group">
-        <label class="form-label">Goal name</label>
-        <input class="form-input" id="goal-name" type="text" placeholder="e.g. Rouje dress" value="${escHtml(goals.name || '')}" maxlength="60">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Dollar target</label>
-        <input class="form-input" id="goal-amount" type="number" step="1" min="1" placeholder="e.g. 180" value="${goals.amount || ''}">
-      </div>
-      <button class="btn btn-primary btn-full" id="save-goal-btn">Save Goal</button>
-    `;
+  openModal(body => _goalScreen1(body));
+}
 
-    body.querySelector('#save-goal-btn').addEventListener('click', () => {
-      const name   = body.querySelector('#goal-name').value.trim();
-      const amount = parseFloat(body.querySelector('#goal-amount').value);
-      if (!name) { showToast('Please enter a goal name'); return; }
-      if (isNaN(amount) || amount <= 0) { showToast('Please enter a valid dollar amount'); return; }
-      const goals = Store.getGoals();
-      goals.name   = name;
-      goals.amount = amount;
-      Store.saveGoals(goals);
-      closeModal();
-      showToast('Goal saved!', 'success');
-      if (currentScreen === 'week') renderWeek();
+function _goalScreen1(body) {
+  const goals = Store.getGoals();
+  body.innerHTML = `
+    <div class="modal-title">What are you working toward?</div>
+    <div class="form-group">
+      <input class="form-input" id="goal-name" type="text" placeholder="e.g. Rouje dress"
+             value="${escHtml(goals.name || '')}" maxlength="60" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">What does it cost? <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+      <input class="form-input" id="goal-amount" type="number" step="1" min="0"
+             placeholder="Dollar amount" value="${goals.amount || ''}">
+    </div>
+    <button class="btn btn-primary btn-full" id="goal-next-btn">Next</button>
+  `;
+  body.querySelector('#goal-name').focus();
+  body.querySelector('#goal-next-btn').addEventListener('click', () => {
+    const name   = body.querySelector('#goal-name').value.trim();
+    const amount = parseFloat(body.querySelector('#goal-amount').value) || 0;
+    if (!name) { showToast('Enter a goal name'); return; }
+    _goalScreen2(body, { name, amount });
+  });
+}
+
+function _goalScreen2(body, { name, amount }) {
+  body.innerHTML = `
+    <div class="modal-title">How soon do you want to earn this?</div>
+    <div class="goal-level-picker">
+      <button class="goal-level-opt" data-level="small">
+        <div class="goal-level-label">Small treat</div>
+        <div class="goal-level-desc">Earn it quickly</div>
+      </button>
+      <button class="goal-level-opt" data-level="medium">
+        <div class="goal-level-label">Something I really want</div>
+        <div class="goal-level-desc">Feels genuinely earned</div>
+      </button>
+      <button class="goal-level-opt" data-level="big">
+        <div class="goal-level-label">Big goal</div>
+        <div class="goal-level-desc">Ambitious — the reward means something</div>
+      </button>
+    </div>
+    <button class="btn btn-outline btn-full mt-8" id="goal-back-btn">Back</button>
+  `;
+  body.querySelectorAll('.goal-level-opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      const level = opt.dataset.level;
+      _goalScreen3(body, { name, amount, level, pointsTarget: suggestPointsTarget(level) });
     });
+  });
+  body.querySelector('#goal-back-btn').addEventListener('click', () => _goalScreen1(body));
+}
+
+function _goalScreen3(body, { name, amount, level, pointsTarget }) {
+  const LABELS  = { small: 'Small treat', medium: 'Something I really want', big: 'Big goal' };
+  const weeksEst = estimateWeeks(pointsTarget);
+  body.innerHTML = `
+    <div class="modal-title">Your goal is set.</div>
+    <div class="goal-confirm-card">
+      <div class="goal-confirm-name">${escHtml(name)}</div>
+      ${amount ? `<div class="goal-confirm-amount">$${amount}</div>` : ''}
+      <div class="goal-confirm-target">${pointsTarget} points · ${escHtml(LABELS[level])}</div>
+      ${weeksEst ? `<div class="goal-confirm-pace">At your recent pace, about ${weeksEst} week${weeksEst !== 1 ? 's' : ''}.</div>` : ''}
+    </div>
+    <button class="btn btn-primary btn-full" id="goal-save-btn">Start earning</button>
+    <button class="btn btn-outline btn-full mt-8" id="goal-back-btn">Back</button>
+  `;
+  body.querySelector('#goal-back-btn').addEventListener('click', () => _goalScreen2(body, { name, amount }));
+  body.querySelector('#goal-save-btn').addEventListener('click', () => {
+    const goals = Store.getGoals();
+    // Archive abandoned goal if one was active and unfinished
+    if (goals.name && goals.pointsTarget) {
+      const spendable = Store.getPoints().spendable;
+      if (spendable < goals.pointsTarget) {
+        if (!goals.history) goals.history = [];
+        goals.history.push({
+          name: goals.name, amount: goals.amount || 0,
+          pointsTarget: goals.pointsTarget, level: goals.level || 'medium',
+          dateSet: goals.dateSet || todayStr(), abandoned: true,
+        });
+      }
+    }
+    goals.name         = name;
+    goals.amount       = amount;
+    goals.pointsTarget = pointsTarget;
+    goals.level        = level;
+    goals.dateSet      = todayStr();
+    Store.saveGoals(goals);
+    closeModal();
+    showToast('Goal saved!', 'success');
+    if (currentScreen === 'week') renderWeek();
   });
 }
 
 /* ── Cash Out Modal ── */
 
 function openCashOutModal() {
-  const goals = Store.getGoals();
+  const goals  = Store.getGoals();
   const points = Store.getPoints();
-  const settings = Store.getSettings();
-  const rate = settings.pointsConversionRate || 0.50;
-  const dollars = (points.spendable * rate).toFixed(2);
 
   openModal(body => {
     body.innerHTML = `
       <div class="modal-title">Cash Out</div>
       <p style="font-size:15px;margin-bottom:16px;color:var(--text)">
-        Cashing out <strong>$${dollars}</strong> for <strong>${escHtml(goals.name)}</strong>.
+        Cashing out <strong>${escHtml(goals.name)}</strong>.
+        <br><span style="font-size:13px;color:var(--text-muted)">${points.spendable} pts earned</span>
       </p>
-      <p class="text-muted text-small mb-16">Your spendable balance will reset to $0. Your lifetime total earned is preserved.</p>
+      <p class="text-muted text-small mb-16">Your spendable balance resets to zero. Lifetime total earned is preserved.</p>
       <button class="btn btn-primary btn-full" id="confirm-cashout-btn">Confirm Cash Out</button>
       <button class="btn btn-outline btn-full mt-8" id="cancel-cashout-btn">Cancel</button>
     `;
 
     body.querySelector('#cancel-cashout-btn').addEventListener('click', closeModal);
     body.querySelector('#confirm-cashout-btn').addEventListener('click', () => {
-      const goals = Store.getGoals();
-      const points = Store.getPoints();
-      if (!goals.history) goals.history = [];
-      goals.history.push({
-        name: goals.name,
-        amount: dollars,
-        date: todayStr(),
-        points: points.spendable,
+      const goals2  = Store.getGoals();
+      const points2 = Store.getPoints();
+      if (!goals2.history) goals2.history = [];
+      goals2.history.push({
+        name: goals2.name, date: todayStr(),
+        points: points2.spendable, pointsTarget: goals2.pointsTarget || null,
+        level: goals2.level || null, daysToEarn: goals2.dateSet
+          ? Math.round((Date.now() - parseDate(goals2.dateSet).getTime()) / 86400000) : null,
       });
-      goals.name   = '';
-      goals.amount = 0;
-      Store.saveGoals(goals);
-      points.spendable = 0;
-      Store.savePoints(points);
+      const goalName2  = goals2.name;
+      const goalAmount = goals2.amount;
+      goals2.name = ''; goals2.amount = 0; goals2.pointsTarget = null;
+      goals2.level = null; goals2.dateSet = null;
+      Store.saveGoals(goals2);
+      points2.spendable = 0;
+      Store.savePoints(points2);
 
       const newBadges = Badges.check();
-
       closeModal();
-      celebrate('🛍️ You earned it.', `$${dollars} cashed out for ${goals.name || 'your goal'}. Go get it.`);
+      // Dollars appear only here, at the celebration moment
+      const celebMsg = goalAmount
+        ? `You earned it: ${goalName2 || 'Your goal'} ($${parseFloat(goalAmount).toFixed(2)})`
+        : `You earned it: ${goalName2 || 'Your goal'}`;
+      celebrate('🛍️', celebMsg);
       if (newBadges.length) setTimeout(() => Badges.showCelebration(newBadges), 2000);
       if (currentScreen === 'week') setTimeout(renderWeek, 2200);
     });
@@ -2362,10 +3264,11 @@ function openActivitiesCustomizer() {
           </label>
           <div class="habit-settings-name">${escHtml(a.label)}</div>
           ${a.priority ? '<span class="habit-badge priority">Priority</span>' : ''}
+          ${a.custom ? `<button class="activity-delete-btn" data-id="${a.id}" title="Delete activity" style="margin-left:auto;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:4px 6px">✕</button>` : ''}
         </div>
       `;
     });
-    html += `<p class="text-muted text-small mt-8" style="padding:0 4px">Priority activities earn 2 pts and get the strength training visual distinction.</p>`;
+    html += `<p class="text-muted text-small mt-8" style="padding:0 4px">Priority activities earn 2 pts and get the strength training visual distinction. Custom activities (marked ✕) can be deleted.</p>`;
     body.innerHTML = html;
 
     body.querySelectorAll('.activity-priority').forEach(toggle => {
@@ -2373,7 +3276,16 @@ function openActivitiesCustomizer() {
         const activities = Store.getActivityDefs();
         activities[parseInt(toggle.dataset.idx)].priority = toggle.checked;
         Store.saveActivityDefs(activities);
-        openActivitiesCustomizer(); // re-render
+        openActivitiesCustomizer();
+      });
+    });
+
+    body.querySelectorAll('.activity-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const updated = Store.getActivityDefs().filter(a => a.id !== id);
+        Store.saveActivityDefs(updated);
+        openActivitiesCustomizer();
       });
     });
   });
@@ -2504,7 +3416,7 @@ document.addEventListener('keydown', e => {
 /* ─── First-visit Hints ──────────────────────────────────────────────────── */
 
 const HINTS = {
-  today:    "Tap any habit to check it off and earn points. Tap and hold any item to see the evidence behind it.",
+  today:    "Tap the checkbox to check off a habit. Tap the habit name to see the science behind it.",
   week:     "These bars update as you check off habits each day. They reflect your week so far — not how much of the week is left.",
   exercise: "Log any workout in three taps. Strength sessions are weighted as the priority domain for body composition.",
   progress: "The trend line matters more than individual weeks — especially postpartum. Focus on the direction, not the number.",
@@ -2555,7 +3467,7 @@ function openHowBloomWorks() {
 
       <div class="how-section">
         <div class="how-heading">The evidence behind each habit</div>
-        <p>Every habit in the checklist has a one-sentence explanation of the research behind it. Tap and hold any item on the Today screen to read it.</p>
+        <p>Every habit in the checklist has a one-sentence explanation of the research behind it. Tap any habit name on the Today screen to read it.</p>
       </div>
 
       <div class="how-section">
@@ -2765,8 +3677,11 @@ function obSaveScreen(n) {
     const amount = parseFloat(document.getElementById('ob-goal-amount')?.value);
     if (name) {
       const goals = Store.getGoals();
-      goals.name   = name;
-      goals.amount = isNaN(amount) ? 0 : amount;
+      goals.name         = name;
+      goals.amount       = isNaN(amount) ? 0 : amount;
+      goals.pointsTarget = goals.pointsTarget || 120; // default: "Something I really want"
+      goals.level        = goals.level        || 'medium';
+      goals.dateSet      = goals.dateSet      || todayStr();
       Store.saveGoals(goals);
     }
   }
@@ -3293,7 +4208,11 @@ function init() {
       return;
     }
     if (Store.get('onboarding_complete')) {
-      showHintIfNeeded('today');
+      if (shouldShowSundayCheckin()) {
+        setTimeout(openSundayCheckin, 600);
+      } else {
+        showHintIfNeeded('today');
+      }
     } else {
       openOnboarding();
     }

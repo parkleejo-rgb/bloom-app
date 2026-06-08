@@ -1,6 +1,6 @@
 /* Bloom Service Worker — cache-first for offline PWA support */
 
-const CACHE = 'bloom-v9';
+const CACHE = 'bloom-v10';
 const ASSETS = [
   './',
   './index.html',

@@ -479,11 +479,7 @@ body {
 }
 
 .habit-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   padding: 9px 0;
-  cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
   border-bottom: 1px solid var(--border);
@@ -724,6 +720,17 @@ body {
 }
 .badge-item.locked .badge-label { opacity: 0.5; }
 .badge-item.earned .badge-icon { animation: badge-pop 0.4s ease; }
+.badge-item.deactivated .badge-icon {
+  filter: grayscale(0.7);
+  opacity: 0.5;
+  animation: none;
+}
+.badge-deactivated-note {
+  font-size: 9px;
+  color: #b45309;
+  font-style: italic;
+  line-height: 1.2;
+}
 
 @keyframes badge-pop {
   0%   { transform: scale(0.6); }
@@ -776,6 +783,19 @@ body {
   color: var(--text-light);
   flex-shrink: 0;
 }
+.workout-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  flex-shrink: 0;
+  opacity: 0.5;
+  line-height: 1;
+  margin-top: 2px;
+}
+.workout-delete-btn:hover { opacity: 1; color: var(--rose); }
 .priority-tag {
   display: inline-block;
   font-size: 10px;
@@ -1557,6 +1577,191 @@ textarea.form-input {
 .week-note-date { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
 .week-note-text { font-size: 13px; color: var(--text); line-height: 1.5; }
 
+/* ─── Feature: Habit Expand Panel + Temptation Bundling ─────────────────── */
+
+/* Restructure habit-item from flex row to block container */
+.habit-item {
+  display: block;
+  cursor: default;
+}
+.habit-main-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.habit-check-zone {
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 2px;
+  margin: -2px;
+}
+.habit-tap-zone {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  min-width: 0;
+}
+.habit-text {
+  /* override old flex:1 since tap-zone is now the flex container */
+  flex: 1;
+}
+
+/* Chevron indicator */
+.habit-chevron {
+  flex-shrink: 0;
+  color: var(--text-light);
+  transition: transform 0.18s ease;
+}
+.habit-item.expanded .habit-chevron { transform: rotate(90deg); }
+
+/* Detail panel: hidden by default, shown when expanded */
+.habit-detail {
+  display: none;
+  padding: 10px 0 4px 26px; /* indent to align with text */
+}
+.habit-item.expanded .habit-detail { display: block; }
+
+.bundle-note-display {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+  font-style: italic;
+}
+.habit-detail-rationale {
+  font-size: 12px;
+  color: var(--text-light);
+  line-height: 1.55;
+  margin: 0 0 6px;
+}
+.habit-detail-core {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-light);
+  margin: 4px 0 0;
+}
+
+/* Temptation bundling prompt card */
+.tbundle-prompt { display: none; }
+.habit-item.has-prompt .tbundle-prompt {
+  display: block;
+  margin: 10px 0 4px 26px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+.tbundle-question {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 0 0 10px;
+}
+.tbundle-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.tbundle-text {
+  flex: 1;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--border-dark);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+}
+.tbundle-text:focus { border-color: var(--sage); }
+.tbundle-mic {
+  background: none;
+  border: 1.5px solid var(--border-dark);
+  border-radius: var(--radius-sm);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.tbundle-mic:active { background: var(--surface-2); }
+.tbundle-skip-btn {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-light);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* ─── Feature: Adaptive Goal Modal ──────────────────────────────────────── */
+
+.goal-level-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.goal-level-opt {
+  text-align: left;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+.goal-level-opt:active,
+.goal-level-opt:hover { border-color: var(--sage); background: var(--surface); }
+.goal-level-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.goal-level-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.goal-confirm-card {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.goal-confirm-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.goal-confirm-amount {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.goal-confirm-target {
+  font-size: 13px;
+  color: var(--sage-dark);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.goal-confirm-pace {
+  font-size: 12px;
+  color: var(--text-light);
+  font-style: italic;
+}
+
 /* ─── Feature: Core Habits + Streak ─────────────────────────────────────── */
 
 /* Today screen summary row */
@@ -1636,4 +1841,113 @@ textarea.form-input {
 @media (max-width: 360px) {
   .badges-grid { grid-template-columns: repeat(3, 1fr); }
   .activity-grid { grid-template-columns: 1fr; }
+}
+
+/* Plateau check-in banner */
+.plateau-banner {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--sage);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 0 0 16px;
+}
+.plateau-banner-text {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+/* ── Feature 7: Neglected habit highlighting ── */
+.habit-neglected .habit-main-row {
+  background: rgba(217, 119, 6, 0.06);
+  border-radius: 8px;
+}
+.habit-detail-neglect {
+  font-size: 13px;
+  color: #b45309;
+  margin: 0 0 6px;
+  font-style: italic;
+}
+
+/* ── Feature 8: Retroactive logging ── */
+.retro-log-row {
+  text-align: center;
+  padding: 16px 0 8px;
+}
+.btn-text-link {
+  background: none;
+  border: none;
+  color: var(--sage);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 4px 8px;
+}
+.retro-date-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.retro-date-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.retro-date-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+.retro-date-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.retro-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 14px 0 6px;
+}
+.retro-habit-list {
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 0 2px;
+}
+.retro-habit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.retro-habit-row.checked .retro-habit-label {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+.retro-habit-row input[type=checkbox] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--sage);
+}
+.retro-habit-label {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text);
+}
+.retro-habit-pts {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
