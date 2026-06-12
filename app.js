@@ -4148,7 +4148,10 @@ function renderSettings() {
   screen.querySelector('#s-activities')?.addEventListener('click', openActivitiesCustomizer);
 
   screen.querySelector('#s-sheets-connect')?.addEventListener('click', async () => {
-    await SheetsSync.connect().catch(() => showToast('Connection failed. Please try again.'));
+    await SheetsSync.connect().catch(err => {
+      console.error('Google Sheets connection failed:', err);
+      showToast(`Connection failed: ${SheetsSync.formatError(err)} Please try again.`);
+    });
   });
   screen.querySelector('#s-sheets-sync')?.addEventListener('click', async () => {
     showToast('Syncing…');
@@ -5514,6 +5517,7 @@ function closeOnboarding() {
 
 const SheetsSync = {
   _gapiReady:    false,
+  _driveReady:   false,
   _debounceTimer: null,
   _restoring:    false,
 
@@ -5608,8 +5612,16 @@ const SheetsSync = {
             if (info.email) this.setAccount(info.email);
           } catch {}
           try {
-            const existingSheetId = await this._findExistingSpreadsheet();
-            const sheetId = existingSheetId || await this._createSpreadsheet();
+            let searchFailed = false;
+            let existingSheetId = null;
+            try {
+              existingSheetId = await this._findExistingSpreadsheet();
+            } catch (searchErr) {
+              searchFailed = true;
+              console.warn('Google Drive backup search failed; creating a new backup if needed:', searchErr);
+            }
+            const savedSheetId = this.getSheetId();
+            const sheetId = existingSheetId || savedSheetId || await this._createSpreadsheet();
             this.setSheetId(sheetId);
             localStorage.removeItem('bloom_google_reauth_needed');
             if (existingSheetId && !hasLocalData()) {
@@ -5619,7 +5631,9 @@ const SheetsSync = {
               showToast('Existing backup restored from Google Sheets.', 'success');
             } else {
               await this.syncAll();
-              showToast(existingSheetId
+              showToast(searchFailed && !savedSheetId
+                ? 'Backup connected. Could not search Drive for an existing backup, so Bloom used a new sheet.'
+                : existingSheetId
                 ? 'Backup reconnected. Your existing Google Sheet is syncing.'
                 : 'Backup connected. Your data is now syncing to Google Sheets in your Drive.', 'success');
             }
@@ -5699,7 +5713,13 @@ const SheetsSync = {
     });
     await gapi.client.init({});
     await gapi.client.load('https://sheets.googleapis.com/$discovery/rest?version=v4');
-    await gapi.client.load('https://www.googleapis.com/discovery/v1/apis/drive/v3/rest');
+    try {
+      await gapi.client.load('https://www.googleapis.com/discovery/v1/apis/drive/v3/rest');
+      this._driveReady = true;
+    } catch (err) {
+      this._driveReady = false;
+      console.warn('Google Drive API discovery failed; existing backup search will be skipped:', err);
+    }
   },
 
   // ── Offline queue ─────────────────────────────────────────────────────────
@@ -5726,6 +5746,9 @@ const SheetsSync = {
 
   async _findExistingSpreadsheet() {
     await this._ensureToken();
+    if (!this._driveReady || !gapi.client.drive?.files) {
+      throw new Error('Google Drive search is unavailable');
+    }
     const escapedName = GOOGLE_SHEETS_BACKUP_NAME.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const resp = await gapi.client.drive.files.list({
       q: `name='${escapedName}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
@@ -5984,6 +6007,14 @@ const SheetsSync = {
     if (diffMin < 60) return `${diffMin} min ago`;
     if (d.toDateString() === now.toDateString()) return `Today at ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
     return d.toLocaleDateString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  },
+
+  formatError(err) {
+    const message = err?.result?.error?.message || err?.message || '';
+    if (/access_not_configured|has not been used|disabled/i.test(message)) return 'Google Drive API may need to be enabled.';
+    if (/popup|idpiframe|origin/i.test(message)) return 'check the Google OAuth origin settings.';
+    if (/permission|scope|insufficient/i.test(message)) return 'Google permission was not granted.';
+    return message ? message.slice(0, 120) + '.' : '';
   },
 };
 
