@@ -1401,23 +1401,43 @@ const Notifications = {
   },
 
   async sendTest() {
-    const perm = await this.requestPermission();
-    if (perm !== 'granted') {
-      showToast(perm === 'denied' ? 'Notifications are blocked in browser settings.' : 'Notifications are not available.');
+    if (!('Notification' in window)) {
+      showToast('Notifications are not supported in this browser.');
       return false;
     }
-    if (Push.isConfigured() && Push.isSupported()) {
-      const pushed = await Push.sendTest();
-      if (pushed) {
-        showToast('Push test sent.', 'success');
+    const perm = await this.requestPermission();
+    if (perm !== 'granted') {
+      showToast(perm === 'denied'
+        ? 'Notifications are blocked. Enable them in your device settings for this site.'
+        : 'Permission not granted.', '');
+      return false;
+    }
+    // Fire via service worker (required on mobile)
+    try {
+      const reg = await navigator.serviceWorker.ready.catch(() => null);
+      if (reg) {
+        await reg.showNotification('Bloom', {
+          body: 'Notifications are working.',
+          icon: './apple-touch-icon.png',
+          badge: './apple-touch-icon.png',
+          tag: 'bloom-test',
+        });
+        showToast('Notification sent -- check your lock screen if the app is open.', 'success');
         this.schedule();
         return true;
       }
+    } catch(err) {
+      // fall through to inline Notification
     }
-    const shown = await this.show('Bloom', 'Notifications are working.');
-    showToast(shown ? 'Test notification sent.' : 'Could not send notification.', shown ? 'success' : '');
+    // Fallback: inline Notification (desktop)
+    try {
+      new Notification('Bloom', { body: 'Notifications are working.', icon: './apple-touch-icon.png' });
+      showToast('Test notification sent.', 'success');
+    } catch {
+      showToast('Could not send notification. Check browser notification permissions.', '');
+    }
     this.schedule();
-    return shown;
+    return true;
   },
 
   _candidateTime(hour, minute = 0, dayOfWeek = null) {
@@ -3817,12 +3837,12 @@ function renderSettings() {
     <div class="settings-section">
       <div class="settings-section-title">Health</div>
       <div class="settings-group">
-        <div class="toggle-row" style="padding:13px 16px">
-          <div>
+        <div class="toggle-row" style="padding:13px 16px;align-items:flex-start">
+          <div style="flex:1;min-width:0;padding-right:16px">
             <div class="toggle-label">Breastfeeding mode</div>
-            <div class="toggle-sublabel">Adjusts guidance and messaging throughout the app to reflect breastfeeding.</div>
+            <div class="toggle-sublabel">Adjusts app guidance to reflect breastfeeding.</div>
           </div>
-          <label class="toggle">
+          <label class="toggle" style="flex-shrink:0;margin-top:2px">
             <input type="checkbox" id="s-bf" ${s.breastfeeding ? 'checked' : ''}>
             <div class="toggle-track"></div>
           </label>
@@ -3845,7 +3865,7 @@ function renderSettings() {
           <label class="settings-row-label" for="s-eat-cutoff">Eating cutoff</label>
           <input class="settings-row-input" id="s-eat-cutoff" type="time" value="${s.eatCutoff || '19:00'}">
         </div>
-        <p class="settings-note">If you are breastfeeding or genuinely hungry in the evening, eating enough always takes priority over this cutoff.</p>
+        <p class="settings-note" style="padding:6px 16px 10px;margin:0">If you are breastfeeding or genuinely hungry in the evening, eating enough always takes priority over this cutoff.</p>
         <div class="settings-row">
           <label class="settings-row-label" for="s-caffeine-cutoff">Caffeine cutoff</label>
           <input class="settings-row-input" id="s-caffeine-cutoff" type="time" value="${s.caffeineCutoff || '13:00'}">
@@ -4026,10 +4046,10 @@ function renderSettings() {
       openModal(body => {
         body.innerHTML = `
           <h2 class="modal-title">A note on breastfeeding and weight loss</h2>
-          <p style="margin:0 0 12px;font-size:14px;line-height:1.6">Breastfeeding increases your daily calorie needs. Most guidelines suggest an additional 300 to 500 kcal per day. Restricting calories too aggressively while breastfeeding can reduce milk supply and affect your energy and recovery.</p>
-          <p style="margin:0 0 12px;font-size:14px;line-height:1.6">Bloom will adjust your sleep reference line and show a reminder on the eating cutoff setting. However, all targets in Bloom are guides, not rules. If you are hungry, eat. If a habit conflicts with feeding your baby or your own energy needs, skip it.</p>
-          <p style="margin:0 0 20px;font-size:14px;line-height:1.6">If you have concerns about weight management while breastfeeding, a registered dietitian or your midwife or OB can give personalised guidance.</p>
-          <button class="btn-primary" id="bf-safety-ok" style="width:100%">Got it</button>
+          <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:var(--text)">Breastfeeding increases your daily calorie needs. Most guidelines suggest an additional 300 to 500 kcal per day. Restricting calories too aggressively can reduce milk supply and affect your energy and recovery.</p>
+          <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:var(--text)">All targets in Bloom are guides, not rules. If you are hungry, eat. If a habit conflicts with feeding your baby or your own energy needs, skip it.</p>
+          <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:var(--text)">If you have concerns about weight management while breastfeeding, a registered dietitian or your midwife or OB can give personalised guidance.</p>
+          <button class="btn btn-primary btn-full" id="bf-safety-ok">Got it</button>
         `;
         body.querySelector('#bf-safety-ok').addEventListener('click', () => {
           Store.set('bloom_bf_safety_seen', true);
