@@ -5950,9 +5950,12 @@ function init() {
     splash.addEventListener('transitionend', () => splash.remove());
   }
 
-  // Register service worker
+  // Register service worker — auto-reload when a new version activates
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    });
   }
 
   // Navigation
