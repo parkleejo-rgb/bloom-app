@@ -436,12 +436,14 @@ const Badges = {
     if (changed) this.saveDeactivated(deact);
   },
 
-  check() {
+  // groups: array of badge groups to check, or omit to check all
+  // 'weight' | 'workout' | 'rewards' | 'habits' — keeps cross-context false positives out
+  check(groups) {
+    const all = !groups;
+    const has = g => all || groups.includes(g);
+
     const earned = Store.getBadges();
     const settings = Store.getSettings();
-    const weighIns = Store.getWeighIns();
-    const workouts = Store.getWorkouts();
-    const goals = Store.getGoals();
     const newly = [];
 
     function award(id) {
@@ -455,42 +457,48 @@ const Badges = {
       }
     }
 
-    if (weighIns.length >= 1) award('first_weighin');
-
-    if (weighIns.length >= 1 && settings.startingWeight) {
-      const latest = weighIns[weighIns.length - 1].weight;
-      const lost = settings.startingWeight - latest;
-      if (lost >= 5)  award('lost_5');
-      if (lost >= 10) award('lost_10');
-      if (lost >= 20) award('lost_20');
-
-      const goalMid = ((settings.goalWeightLow || 135) + (settings.goalWeightHigh || 145)) / 2;
-      const totalToLose = settings.startingWeight - goalMid;
-      if (totalToLose > 0 && lost >= totalToLose / 2) award('halfway');
-      if (latest <= (settings.goalWeightHigh || 145)) award('goal_range');
+    if (has('weight')) {
+      const weighIns = Store.getWeighIns();
+      if (weighIns.length >= 1) award('first_weighin');
+      if (weighIns.length >= 1 && settings.startingWeight) {
+        const latest = weighIns[weighIns.length - 1].weight;
+        const lost = settings.startingWeight - latest;
+        if (lost >= 5)  award('lost_5');
+        if (lost >= 10) award('lost_10');
+        if (lost >= 20) award('lost_20');
+        const goalMid = ((settings.goalWeightLow || 135) + (settings.goalWeightHigh || 145)) / 2;
+        const totalToLose = settings.startingWeight - goalMid;
+        if (totalToLose > 0 && lost >= totalToLose / 2) award('halfway');
+        if (latest <= (settings.goalWeightHigh || 145)) award('goal_range');
+      }
     }
 
-    if (workouts.length >= 1)  award('first_workout');
-    if (workouts.length >= 10) award('workouts_10');
-    if (workouts.length >= 25) award('workouts_25');
+    if (has('workout')) {
+      const workouts = Store.getWorkouts();
+      if (workouts.length >= 1)  award('first_workout');
+      if (workouts.length >= 10) award('workouts_10');
+      if (workouts.length >= 25) award('workouts_25');
+      const strengthCount = workouts.filter(w => w.priority).length;
+      if (strengthCount >= 5)  award('strength_5');
+      if (strengthCount >= 20) award('strength_20');
+    }
 
-    const strengthCount = workouts.filter(w => w.priority).length;
-    if (strengthCount >= 5)  award('strength_5');
-    if (strengthCount >= 20) award('strength_20');
+    if (has('rewards')) {
+      const goals = Store.getGoals();
+      const cashouts = goals.history ? goals.history.length : 0;
+      if (cashouts >= 1) award('first_cashout');
+      if (cashouts >= 3) award('cashouts_3');
+    }
 
-    const cashouts = goals.history ? goals.history.length : 0;
-    if (cashouts >= 1) award('first_cashout');
-    if (cashouts >= 3) award('cashouts_3');
-
-    // 30 days of check-ins
-    const habitKeys = Object.keys(localStorage)
-      .filter(k => k.startsWith('bloom_habits_'))
-      .map(k => k.replace('bloom_habits_', ''));
-    if (habitKeys.length >= 30) award('checkins_30');
-    if (habitKeys.length >= 7)  award('first_full_week');
+    if (has('habits')) {
+      const habitKeys = Object.keys(localStorage)
+        .filter(k => k.startsWith('bloom_habits_'))
+        .map(k => k.replace('bloom_habits_', ''));
+      if (habitKeys.length >= 30) award('checkins_30');
+      if (habitKeys.length >= 7)  award('first_full_week');
+    }
 
     Store.saveBadges(earned);
-    // Always recheck deactivation state after any award pass
     this.recheckWorkoutBadges();
     return newly;
   },
@@ -2661,7 +2669,7 @@ function toggleHabit(item) {
     updatePointsBadge();
     showToast(`+${habit.points} pt${habit.points > 1 ? 's' : ''}`, 'success');
 
-    const newBadges = Badges.check();
+    const newBadges = Badges.check(['habits']);
     if (newBadges.length) setTimeout(() => Badges.showCelebration(newBadges), 400);
 
     // Check streak badges
@@ -4379,7 +4387,7 @@ function saveWorkout() {
     if (currentScreen === 'today') renderToday();
   }
 
-  const newBadges = Badges.check();
+  const newBadges = Badges.check(['workout', 'habits']);
   if (newBadges.length) setTimeout(() => Badges.showCelebration(newBadges), 300);
 
   if (currentScreen === 'exercise') renderExercise();
@@ -4474,7 +4482,7 @@ function openWeighInModal() {
       closeModal();
       showToast(isNewWeighIn ? 'Weight logged! +3 pts' : 'Weight updated', 'success');
 
-      const newBadges = Badges.check();
+      const newBadges = Badges.check(['weight']);
       if (newBadges.length) setTimeout(() => Badges.showCelebration(newBadges), 300);
 
       if (currentScreen === 'week') renderWeek();
@@ -4624,7 +4632,7 @@ function openCashOutModal() {
       points2.spendable = 0;
       Store.savePoints(points2);
 
-      const newBadges = Badges.check();
+      const newBadges = Badges.check(['rewards']);
       closeModal();
       // Dollars appear only here, at the celebration moment
       const celebMsg = goalAmount
