@@ -1,0 +1,21 @@
+name = "bloom-push"
+main = "index.js"
+compatibility_date = "2025-01-01"
+
+# Cron runs every 30 minutes, matching the reminder window in worker/index.js.
+[triggers]
+crons = ["*/30 * * * *"]
+
+# Create with:
+#   wrangler kv namespace create SUBS
+# Then paste the returned id here. For local dev, create a preview namespace too.
+[[kv_namespaces]]
+binding = "SUBS"
+id = "3a3946be832e49048cf9b6ca19cf989c"
+preview_id = "REPLACE_WITH_KV_NAMESPACE_PREVIEW_ID"
+
+# VAPID_PRIVATE_JWK and VAPID_SUBJECT are secrets:
+#   wrangler secret put VAPID_PRIVATE_JWK
+#   wrangler secret put VAPID_SUBJECT
+[vars]
+VAPID_PUBLIC_KEY = "BDZJm6bJnXZjFnesY2wLE4kVXbericjU_Cnua-QWitRxfbMZRzIWqbMR5em6YndVv0js2DKCRBwDwRQEnP9CvRI"

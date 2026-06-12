@@ -148,6 +148,11 @@ const BADGE_DEFINITIONS = [
 // Enable the Google Sheets API and add your app's origin to allowed JavaScript origins.
 const GOOGLE_CLIENT_ID = '763862383625-3gpodcsd248v47k5f35oh2ptobendksu.apps.googleusercontent.com';
 
+// Web Push config. Generate keys with `node worker/generate-keys.mjs`, then
+// deploy the Cloudflare Worker and paste its public URL here.
+const VAPID_PUBLIC_KEY = 'BDZJm6bJnXZjFnesY2wLE4kVXbericjU_Cnua-QWitRxfbMZRzIWqbMR5em6YndVv0js2DKCRBwDwRQEnP9CvRI';
+const PUSH_WORKER_URL  = 'https://bloom-push.jopark-root.workers.dev';
+
 const DEFAULT_SETTINGS = {
   name: '',
   startingWeight: null,
@@ -355,19 +360,19 @@ function formatWeekRange(ws) {
 /* ─── Points System ──────────────────────────────────────────────────────── */
 
 const Points = {
-  add(amount, reason) {
+  add(amount, reason, date = todayStr()) {
     const p = Store.getPoints();
     p.total_earned += amount;
     p.spendable += amount;
-    p.history.push({ date: todayStr(), amount, reason });
+    p.history.push({ date, amount, reason });
     Store.savePoints(p);
     updatePointsBadge();
   },
-  deduct(amount, reason) {
+  deduct(amount, reason, date = todayStr()) {
     const p = Store.getPoints();
     p.spendable    = Math.max(0, p.spendable    - amount);
     p.total_earned = Math.max(0, p.total_earned - amount);
-    p.history.push({ date: todayStr(), amount: -amount, reason });
+    p.history.push({ date, amount: -amount, reason });
     Store.savePoints(p);
     updatePointsBadge();
   },
@@ -1260,8 +1265,20 @@ function openRetroChecklist(retroDate) {
 
 let currentScreen = 'today';
 let weightChart = null;
+let viewingDate = todayStr();
+
+function registerChartPlugins() {
+  if (typeof Chart !== 'undefined' && typeof ChartAnnotation !== 'undefined') {
+    try { Chart.register(ChartAnnotation); } catch {}
+  }
+}
 
 function navigate(screen) {
+  if (screen !== 'today') {
+    viewingDate = todayStr();
+    Store.set('date_strip_week_offset', 0);
+  }
+
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
@@ -1342,11 +1359,13 @@ function hideRationale() {
 /* ─── Notifications Module ────────────────────────────────────────────────── */
 
 const Notifications = {
+  _timer: null,
+
   async requestPermission() {
     if (!('Notification' in window)) return 'unsupported';
     if (Notification.permission === 'granted') return 'granted';
-    const result = await Notification.requestPermission();
-    return result;
+    try { return await Notification.requestPermission(); }
+    catch { return 'unsupported'; }
   },
 
   isBlocked() {
@@ -1354,16 +1373,84 @@ const Notifications = {
   },
 
   async show(title, body) {
-    if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.ready.catch(() => null);
-      if (reg) { reg.showNotification(title, { body, icon: './apple-touch-icon.png', badge: './apple-touch-icon.png' }); return; }
+    if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+    const opts = {
+      body,
+      icon: './apple-touch-icon.png',
+      badge: './apple-touch-icon.png',
+      tag: `bloom-${title}-${body}`.slice(0, 120),
+    };
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready.catch(() => null);
+        if (reg) { await reg.showNotification(title, opts); return true; }
+      }
+      new Notification(title, opts);
+      return true;
+    } catch {
+      return false;
     }
-    new Notification(title, { body, icon: './apple-touch-icon.png' });
+  },
+
+  async sendTest() {
+    const perm = await this.requestPermission();
+    if (perm !== 'granted') {
+      showToast(perm === 'denied' ? 'Notifications are blocked in browser settings.' : 'Notifications are not available.');
+      return false;
+    }
+    if (Push.isConfigured() && Push.isSupported()) {
+      const pushed = await Push.sendTest();
+      if (pushed) {
+        showToast('Push test sent.', 'success');
+        this.schedule();
+        return true;
+      }
+    }
+    const shown = await this.show('Bloom', 'Notifications are working.');
+    showToast(shown ? 'Test notification sent.' : 'Could not send notification.', shown ? 'success' : '');
+    this.schedule();
+    return shown;
+  },
+
+  _candidateTime(hour, minute = 0, dayOfWeek = null) {
+    const now = new Date();
+    const d = new Date(now);
+    d.setHours(hour, minute, 0, 0);
+    if (dayOfWeek !== null) {
+      const diff = (dayOfWeek - d.getDay() + 7) % 7;
+      d.setDate(d.getDate() + diff);
+    }
+    if (d <= now) d.setDate(d.getDate() + (dayOfWeek === null ? 1 : 7));
+    return d;
+  },
+
+  schedule() {
+    clearTimeout(this._timer);
+    this._timer = null;
+
+    const s = Store.getSettings();
+    if (!s.featNotifications || !('Notification' in window) || Notification.permission !== 'granted') return;
+
+    const candidates = [];
+    if (s.notifStreakProtection) candidates.push(this._candidateTime(19));
+    if (s.notifWeighIn) candidates.push(this._candidateTime(9, 0, 0));
+    if (s.notifBedtime) candidates.push(this._candidateTime(22));
+    if (s.notifMorningCheckin && s.notifMorningTime) {
+      const [h, m] = s.notifMorningTime.split(':').map(Number);
+      if (!isNaN(h)) candidates.push(this._candidateTime(h, isNaN(m) ? 0 : m));
+    }
+    if (!candidates.length) return;
+
+    const next = candidates.sort((a, b) => a - b)[0];
+    const delay = Math.max(1000, Math.min(next - new Date(), 2147483647));
+    this._timer = setTimeout(async () => {
+      await this.checkPending();
+      this.schedule();
+    }, delay);
   },
 
   // Called on app open and visibility change — fires any pending notifications for today
-  checkPending() {
+  async checkPending() {
     const s = Store.getSettings();
     if (!s.featNotifications) return;
     const now   = new Date();
@@ -1378,8 +1465,9 @@ const Notifications = {
       if (streak.current > 0) {
         const { done: coreDone } = Streak.getCoreProgress(today);
         if (coreDone < 5) {
-          this.show('Bloom', `Your ${streak.current}-day streak is on the line. You've got time.`);
-          fired.streakProtection = true;
+          if (await this.show('Bloom', `Your ${streak.current}-day streak is on the line. You've got time.`)) {
+            fired.streakProtection = true;
+          }
         }
       }
     }
@@ -1389,8 +1477,9 @@ const Notifications = {
       const ws  = dateStr(getWeekStart());
       const has = Store.getWeighIns().some(w => w.date >= ws);
       if (!has) {
-        this.show('Bloom', "Weekly weigh-in -- log it while you're thinking about it.");
-        fired.weighIn = true;
+        if (await this.show('Bloom', "Weekly weigh-in -- log it while you're thinking about it.")) {
+          fired.weighIn = true;
+        }
       }
     }
 
@@ -1398,8 +1487,9 @@ const Notifications = {
     if (s.notifBedtime && !fired.bedtime && hour >= 22) {
       const checked = Store.getHabits(today);
       if (!checked['sleep_bed']) {
-        this.show('Bloom', "Bedtime habit -- 30 minutes to your target.");
-        fired.bedtime = true;
+        if (await this.show('Bloom', "Bedtime habit -- 30 minutes to your target.")) {
+          fired.bedtime = true;
+        }
       }
     }
 
@@ -1407,12 +1497,151 @@ const Notifications = {
     if (s.notifMorningCheckin && !fired.morningCheckin && s.notifMorningTime) {
       const [th, tm] = s.notifMorningTime.split(':').map(Number);
       if (hour > th || (hour === th && min >= tm)) {
-        this.show('Bloom', "How's your morning going? Log your habits.");
-        fired.morningCheckin = true;
+        if (await this.show('Bloom', "How's your morning going? Log your habits.")) {
+          fired.morningCheckin = true;
+        }
       }
     }
 
     if (Object.keys(fired).length) Store.set('notif_fired_' + today, fired);
+  },
+};
+
+/* ─── Web Push Module ──────────────────────────────────────────────────────── */
+
+const Push = {
+  isConfigured() {
+    return !!(VAPID_PUBLIC_KEY && PUSH_WORKER_URL);
+  },
+
+  isSupported() {
+    return 'serviceWorker' in navigator && 'PushManager' in window;
+  },
+
+  getEndpoint() { return localStorage.getItem('bloom_push_endpoint') || null; },
+  setEndpoint(endpoint) {
+    if (endpoint) localStorage.setItem('bloom_push_endpoint', endpoint);
+    else localStorage.removeItem('bloom_push_endpoint');
+  },
+
+  hasEnabledPrefs(settings = Store.getSettings()) {
+    return !!(
+      settings.featNotifications &&
+      (settings.notifStreakProtection || settings.notifWeighIn ||
+       settings.notifBedtime || settings.notifMorningCheckin)
+    );
+  },
+
+  _vapidKey() {
+    const base64 = VAPID_PUBLIC_KEY.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = '='.repeat((4 - base64.length % 4) % 4);
+    const raw = atob(base64 + pad);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    return bytes;
+  },
+
+  _prefsFromSettings(settings) {
+    return {
+      streakProtection: !!settings.notifStreakProtection,
+      weighIn: !!settings.notifWeighIn,
+      bedtime: !!settings.notifBedtime,
+      morningCheckin: !!settings.notifMorningCheckin,
+      morningTime: settings.notifMorningTime || '08:00',
+      tzOffset: -new Date().getTimezoneOffset(),
+    };
+  },
+
+  async subscribe() {
+    if (!this.isConfigured() || !this.isSupported()) return false;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: this._vapidKey(),
+        });
+      }
+
+      this.setEndpoint(sub.endpoint);
+      const response = await fetch(`${PUSH_WORKER_URL}/push/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscription: sub.toJSON(),
+          prefs: this._prefsFromSettings(Store.getSettings()),
+        }),
+      });
+      if (!response.ok) throw new Error(`Push subscribe failed: ${response.status}`);
+      return true;
+    } catch (err) {
+      console.error('Push subscribe failed:', err);
+      return false;
+    }
+  },
+
+  async updatePrefs() {
+    const endpoint = this.getEndpoint();
+    if (!this.isConfigured() || !endpoint) return;
+    fetch(`${PUSH_WORKER_URL}/push/update-prefs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        endpoint,
+        prefs: this._prefsFromSettings(Store.getSettings()),
+      }),
+    }).catch(err => console.warn('Push prefs update failed:', err));
+  },
+
+  async unsubscribe() {
+    const endpoint = this.getEndpoint();
+    if (endpoint && this.isConfigured()) {
+      fetch(`${PUSH_WORKER_URL}/push/unsubscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint }),
+      }).catch(() => {});
+    }
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+    } catch {}
+    this.setEndpoint(null);
+  },
+
+  async sendTest() {
+    if (!this.isConfigured() || !this.isSupported()) return false;
+    if (!this.getEndpoint()) {
+      const ok = await this.subscribe();
+      if (!ok) return false;
+    }
+
+    try {
+      const response = await fetch(`${PUSH_WORKER_URL}/push/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: this.getEndpoint() }),
+      });
+      return response.ok;
+    } catch (err) {
+      console.warn('Push test failed:', err);
+      return false;
+    }
+  },
+
+  async sync(settings = Store.getSettings(), { subscribeWhenEnabled = false } = {}) {
+    if (!this.isConfigured() || !this.isSupported()) return true;
+    const anyEnabled = this.hasEnabledPrefs(settings);
+    if (!anyEnabled) {
+      if (this.getEndpoint()) await this.unsubscribe();
+      return true;
+    }
+    if (subscribeWhenEnabled && !this.getEndpoint()) return this.subscribe();
+    if (this.getEndpoint()) await this.updatePrefs();
+    return true;
   },
 };
 
@@ -2024,9 +2253,106 @@ function getNeglectedDays(habitId) {
   return days;
 }
 
+function sortHabitsByPoints(habits) {
+  return habits
+    .map((habit, index) => ({ habit, index }))
+    .sort((a, b) => (b.habit.points || 0) - (a.habit.points || 0) || a.index - b.index)
+    .map(item => item.habit);
+}
+
+function renderDateStrip() {
+  const today = todayStr();
+  const viewing = viewingDate;
+  const weekOffset = Store.get('date_strip_week_offset', 0);
+  const anchor = new Date(getWeekStart());
+  anchor.setDate(anchor.getDate() + (weekOffset * 7));
+  const days = getWeekDays(anchor);
+  const dowShort = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const canGoBack = weekOffset > -1;
+  const canGoForward = weekOffset < 0;
+  const habits = Store.getHabitDefs().filter(h => h.enabled !== false);
+
+  const dayCols = days.map((d, i) => {
+    const isPast = d < today;
+    const isToday = d === today;
+    const isFuture = d > today;
+    const isViewing = d === viewing;
+    const date = parseDate(d);
+    const dayNum = date.getDate();
+    const checkedHabits = Store.getHabits(d);
+    const hasAnyLogged = habits.some(h => checkedHabits[h.id]);
+    let colClass = 'date-strip-col';
+    if (isViewing) colClass += ' selected';
+    if (isToday) colClass += ' today';
+    if (isFuture) colClass += ' disabled';
+    if (isPast && hasAnyLogged) colClass += ' has-data';
+
+    return `
+      <button class="${colClass}" data-date="${d}" ${isFuture ? 'disabled' : ''} aria-label="${dowShort[i]} ${dayNum}${isToday ? ', today' : ''}${isViewing ? ', selected' : ''}">
+        <span class="date-strip-dow">${dowShort[i]}</span>
+        <span class="date-strip-num">${dayNum}</span>
+        ${(isPast || isToday) && hasAnyLogged ? '<span class="date-strip-dot"></span>' : '<span class="date-strip-dot empty"></span>'}
+      </button>
+    `;
+  }).join('');
+
+  return `
+    <div class="date-strip-wrap">
+      <button class="date-strip-nav" id="date-strip-back" ${canGoBack ? '' : 'disabled'} aria-label="Previous week">‹</button>
+      <div class="date-strip-days" id="date-strip-days">${dayCols}</div>
+      <button class="date-strip-nav" id="date-strip-fwd" ${canGoForward ? '' : 'disabled'} aria-label="Next week">›</button>
+    </div>
+  `;
+}
+
+function renderPastDateBanner() {
+  if (viewingDate === todayStr()) return '';
+  const d = parseDate(viewingDate);
+  const label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  return `
+    <div class="past-date-banner">
+      <span class="past-date-banner-label">Logging for ${label}</span>
+      <button class="past-date-banner-today" id="go-to-today-btn">Back to today</button>
+    </div>
+  `;
+}
+
+function bindDateStrip(screen) {
+  screen.querySelectorAll('.date-strip-col:not(.disabled)').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const d = btn.dataset.date;
+      if (!d) return;
+      viewingDate = d;
+      renderToday();
+    });
+  });
+  screen.querySelector('#date-strip-back')?.addEventListener('click', () => {
+    const current = Store.get('date_strip_week_offset', 0);
+    if (current > -1) {
+      Store.set('date_strip_week_offset', current - 1);
+      renderToday();
+    }
+  });
+  screen.querySelector('#date-strip-fwd')?.addEventListener('click', () => {
+    const current = Store.get('date_strip_week_offset', 0);
+    if (current < 0) {
+      Store.set('date_strip_week_offset', current + 1);
+      if (current + 1 === 0) viewingDate = todayStr();
+      renderToday();
+    }
+  });
+  screen.querySelector('#go-to-today-btn')?.addEventListener('click', () => {
+    viewingDate = todayStr();
+    Store.set('date_strip_week_offset', 0);
+    renderToday();
+  });
+}
+
 function buildHabitItemHtml(habit, checked, isCore, bundleEntry, isPromptActive, neglectDays) {
   const id            = habit.id;
   const isChecked     = !!checked[id];
+  const labelText     = `${habit.label}${habit.retroactive ? ' (for last night)' : ''}`;
+  const detailId      = `habit-detail-${id}`;
   const bundleNote    = bundleEntry?.note    || null;
   const bundleSkipped = bundleEntry?.skipped || false;
   const extra         = habit.retroactive ? '<span class="text-small text-muted"> (for last night)</span>' : '';
@@ -2076,15 +2402,15 @@ function buildHabitItemHtml(habit, checked, isCore, bundleEntry, isPromptActive,
     <div class="${itemCls}" data-habit="${id}" data-opens-workout="${habit.opensWorkout}" data-priority="${habit.priority}">
       <div class="habit-main-row">
         ${coreDot}
-        <div class="habit-check-zone"><div class="habit-check"></div></div>
-        <div class="habit-tap-zone">
+        <button class="habit-check-zone" type="button" role="checkbox" aria-checked="${isChecked}" aria-label="${isChecked ? 'Mark incomplete' : 'Mark complete'}: ${escHtml(labelText)}"><div class="habit-check" aria-hidden="true"></div></button>
+        <button class="habit-tap-zone" type="button" ${hasDetailFinal ? `aria-expanded="false" aria-controls="${detailId}"` : ''}>
           <div class="habit-text">${escHtml(habit.label)}${extra}</div>
           ${workoutTag}
           <div class="habit-points">${habit.points}pt${habit.points > 1 ? 's' : ''}</div>
           ${hasDetailFinal ? `<svg class="habit-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>` : ''}
-        </div>
+        </button>
       </div>
-      ${hasDetailFinal ? `<div class="habit-detail">${neglectHtml}${noteHtml}${rationaleHtml}${coreTagHtml}</div>` : ''}
+      ${hasDetailFinal ? `<div class="habit-detail" id="${detailId}">${neglectHtml}${noteHtml}${rationaleHtml}${coreTagHtml}</div>` : ''}
       ${promptHtml}
     </div>`;
 }
@@ -2092,12 +2418,14 @@ function buildHabitItemHtml(habit, checked, isCore, bundleEntry, isPromptActive,
 function renderToday() {
   const screen  = document.getElementById('screen-today');
   const today   = todayStr();
-  const checked = Store.getHabits(today);
+  const viewDate = viewingDate;
+  const checked = Store.getHabits(viewDate);
   const habits  = Store.getHabitDefs().filter(h => h.enabled !== false);
+  const isViewingToday = viewDate === today;
 
   // Temptation bundling
   const bundleData    = TBundle.getData();
-  const promptHabitId = TBundle.getPromptHabitId(checked, habits);
+  const promptHabitId = isViewingToday ? TBundle.getPromptHabitId(checked, habits) : null;
 
   // Neglected habit days (computed once for all habits)
   const neglectMap = {};
@@ -2115,47 +2443,57 @@ function renderToday() {
 
   let html = '';
 
+  html += renderDateStrip();
+  html += renderPastDateBanner();
+
   // Summary row: total done + streak counter
+  const countLabel = isViewingToday ? 'habits done today' : 'habits done that day';
   html += `
     <div class="today-summary-row">
-      <span id="today-habit-count" class="today-habit-count">${totalDone} of ${totalAll} habits done today</span>
-      ${streakData.current > 0
+      <span id="today-habit-count" class="today-habit-count">${totalDone} of ${totalAll} ${countLabel}</span>
+      ${isViewingToday && streakData.current > 0
         ? `<span id="streak-counter" class="streak-counter">🔥 ${streakData.current}-day streak</span>`
         : `<span id="streak-counter" class="streak-counter" style="display:none"></span>`}
     </div>
   `;
 
-  // Grace day note
-  if (streakData.showGraceNote) {
-    html += `<div class="streak-note">Grace day used — streak intact.</div>`;
-    streakData.showGraceNote = false;
-    Streak.saveData(streakData);
-  }
+  if (isViewingToday) {
+    // Grace day note
+    if (streakData.showGraceNote) {
+      html += `<div class="streak-note">Grace day used — streak intact.</div>`;
+      streakData.showGraceNote = false;
+      Streak.saveData(streakData);
+    }
 
-  // Streak broken message
-  if (streakData.showBrokenNote) {
-    html += `<div class="streak-note">Streak reset. Your best was ${streakData.bestAtBreak} days. Build a new one.</div>`;
-    streakData.showBrokenNote = false;
-    Streak.saveData(streakData);
-  }
+    // Streak broken message
+    if (streakData.showBrokenNote) {
+      html += `<div class="streak-note">Streak reset. Your best was ${streakData.bestAtBreak} days. Build a new one.</div>`;
+      streakData.showBrokenNote = false;
+      Streak.saveData(streakData);
+    }
 
-  // "Streak on the line" banner
-  html += `
-    <div id="streak-on-line-banner" class="streak-on-line" ${onTheLine ? '' : 'style="display:none"'}>
-      Your ${streakData.current}-day streak is on the line today.
-    </div>
-  `;
+    // "Streak on the line" banner
+    html += `
+      <div id="streak-on-line-banner" class="streak-on-line" ${onTheLine ? '' : 'style="display:none"'}>
+        Your ${streakData.current}-day streak is on the line today.
+      </div>
+    `;
+  }
 
   // Optional feature cards (sleep, mood, photos, measurements)
-  html += `<div id="today-optional-cards">`;
-  html += renderSleepCard();
-  html += renderMoodCard();
-  html += renderPhotoPromptCard();
-  html += renderMeasurementPromptCard();
-  html += `</div>`;
+  if (isViewingToday) {
+    html += `<div id="today-optional-cards">`;
+    html += renderSleepCard();
+    html += renderMoodCard();
+    html += renderPhotoPromptCard();
+    html += renderMeasurementPromptCard();
+    html += `</div>`;
+  } else {
+    html += `<div id="today-optional-cards"></div>`;
+  }
 
   // Top section: all core habits
-  const coreHabits = habits.filter(h => CORE_HABIT_IDS.includes(h.id));
+  const coreHabits = sortHabitsByPoints(habits.filter(h => CORE_HABIT_IDS.includes(h.id)));
   if (coreHabits.length) {
     html += `
       <div class="habit-group">
@@ -2173,7 +2511,7 @@ function renderToday() {
   pillars.forEach(pillar => {
     const meta       = PILLAR_META[pillar];
     const allItems   = habits.filter(h => h.pillar === pillar);
-    const bonusItems = allItems.filter(h => !CORE_HABIT_IDS.includes(h.id));
+    const bonusItems = sortHabitsByPoints(allItems.filter(h => !CORE_HABIT_IDS.includes(h.id)));
     if (!bonusItems.length) return;
 
     const pillarDone = allItems.filter(h => checked[h.id]).length;
@@ -2194,18 +2532,17 @@ function renderToday() {
     html += `</div>`;
   });
 
-  // Retroactive logging link
-  html += `<div class="retro-log-row"><button class="btn-text-link" id="retro-log-btn">Log a past day</button></div>`;
-
   screen.innerHTML = html;
 
-  screen.querySelector('#retro-log-btn')?.addEventListener('click', openRetroDatePicker);
-
   // Bind optional feature cards
-  bindSleepCard(screen);
-  bindMoodCard(screen);
-  bindPhotoPromptCard(screen);
-  bindMeasurementPromptCard(screen);
+  if (isViewingToday) {
+    bindSleepCard(screen);
+    bindMoodCard(screen);
+    bindPhotoPromptCard(screen);
+    bindMeasurementPromptCard(screen);
+  }
+
+  bindDateStrip(screen);
 
   // Habit events: check-zone → toggle, tap-zone → expand detail, prompt handlers
   screen.querySelectorAll('.habit-item').forEach(item => {
@@ -2220,7 +2557,10 @@ function renderToday() {
     // Tap zone: expand/collapse detail panel
     item.querySelector('.habit-tap-zone')?.addEventListener('click', () => {
       const detail = item.querySelector('.habit-detail');
-      if (detail) item.classList.toggle('expanded');
+      if (detail) {
+        const expanded = item.classList.toggle('expanded');
+        item.querySelector('.habit-tap-zone')?.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      }
     });
 
     // Bundle prompt: skip
@@ -2258,6 +2598,7 @@ function renderToday() {
 }
 
 function updateStreakDisplay() {
+  if (viewingDate !== todayStr()) return;
   const today   = todayStr();
   const checked = Store.getHabits(today);
   const habits  = Store.getHabitDefs().filter(h => h.enabled !== false);
@@ -2298,7 +2639,8 @@ function updateStreakDisplay() {
 }
 
 function toggleHabit(item) {
-  const today   = todayStr();
+  const today   = viewingDate;
+  const isViewingToday = today === todayStr();
   const id      = item.dataset.habit;
   const checked = Store.getHabits(today);
   const habits  = Store.getHabitDefs();
@@ -2312,7 +2654,10 @@ function toggleHabit(item) {
     checked[id] = true;
     Store.saveHabits(today, checked);
     item.classList.add('checked');
-    Points.add(habit.points, `Habit: ${habit.label}`);
+    const checkBtn = item.querySelector('.habit-check-zone');
+    checkBtn?.setAttribute('aria-checked', 'true');
+    checkBtn?.setAttribute('aria-label', `Mark incomplete: ${habit.label}${habit.retroactive ? ' (for last night)' : ''}`);
+    Points.add(habit.points, `Habit: ${habit.label}`, today);
     updatePointsBadge();
     showToast(`+${habit.points} pt${habit.points > 1 ? 's' : ''}`, 'success');
 
@@ -2325,10 +2670,11 @@ function toggleHabit(item) {
       setTimeout(() => Streak.showBadgeCelebration(newStreakBadges[0]), newBadges.length ? 800 : 400);
     }
 
-    updateStreakDisplay();
+    if (isViewingToday) updateStreakDisplay();
+    else renderToday();
 
     // Reveal bundle prompt if newly eligible
-    if (TBundle.shouldPromptNow(id)) {
+    if (isViewingToday && TBundle.shouldPromptNow(id)) {
       item.classList.add('has-prompt');
       setTimeout(() => item.querySelector('.tbundle-text')?.focus(), 200);
     }
@@ -2341,9 +2687,13 @@ function toggleHabit(item) {
     delete checked[id];
     Store.saveHabits(today, checked);
     item.classList.remove('checked');
-    Points.deduct(habit.points, `Habit unchecked: ${habit.label}`);
+    const checkBtn = item.querySelector('.habit-check-zone');
+    checkBtn?.setAttribute('aria-checked', 'false');
+    checkBtn?.setAttribute('aria-label', `Mark complete: ${habit.label}${habit.retroactive ? ' (for last night)' : ''}`);
+    Points.deduct(habit.points, `Habit unchecked: ${habit.label}`, today);
     updatePointsBadge();
-    updateStreakDisplay();
+    if (isViewingToday) updateStreakDisplay();
+    else renderToday();
   }
 }
 
@@ -2384,7 +2734,7 @@ function renderWeek() {
   let html = '';
 
   // Intention
-  if (intention) {
+  if (intention && !intention.skipped && (intention.pillar || intention.text)) {
     const txt = intention.pillar ? PILLAR_META[intention.pillar]?.label : intention.text;
     html += `
       <div class="intention-chip">
@@ -3348,13 +3698,18 @@ function renderSettings() {
     ? `<p style="font-size:12px;color:var(--text-muted);margin-top:6px;font-style:italic">Enable notifications in iOS Settings to use this feature.</p>`
     : '';
   const notifDisabled = (el) => notifBlocked ? `style="opacity:0.5;pointer-events:none"` : '';
+  const pushStatus = Push.isConfigured()
+    ? (Push.getEndpoint()
+      ? 'Push server is connected for this device.'
+      : 'Push server is configured. Turn on a reminder to connect this device.')
+    : 'Remote push server is not configured yet. Local reminders work while Bloom is open.';
 
   const html = `
     <div class="screen-header"><h2>Settings</h2></div>
 
     <div class="settings-section">
       <div class="settings-group">
-        <div class="settings-btn-row" id="s-how-bloom-works" style="display:flex;align-items:center;justify-content:space-between">
+        <div class="settings-btn-row" role="button" tabindex="0" id="s-how-bloom-works" style="display:flex;align-items:center;justify-content:space-between">
           <div>
             <div class="settings-btn-label" style="font-weight:600">How Bloom works</div>
             <div class="settings-btn-desc">The domains, the scoring, the evidence</div>
@@ -3368,23 +3723,23 @@ function renderSettings() {
       <div class="settings-section-title">About You</div>
       <div class="settings-group">
         <div class="settings-row">
-          <div class="settings-row-label">Name</div>
+          <label class="settings-row-label" for="s-name">Name</label>
           <input class="settings-row-input" id="s-name" type="text" placeholder="Your name" value="${escHtml(s.name || '')}" autocomplete="off">
         </div>
         <div class="settings-row">
-          <div class="settings-row-label">Starting weight</div>
+          <label class="settings-row-label" for="s-start-weight">Starting weight</label>
           <input class="settings-row-input" id="s-start-weight" type="number" step="0.1" placeholder="lbs" value="${s.startingWeight || ''}">
         </div>
         <div class="settings-row">
-          <div class="settings-row-label">Goal weight (low)</div>
+          <label class="settings-row-label" for="s-goal-low">Goal weight (low)</label>
           <input class="settings-row-input" id="s-goal-low" type="number" step="0.1" placeholder="lbs" value="${s.goalWeightLow || ''}">
         </div>
         <div class="settings-row">
-          <div class="settings-row-label">Goal weight (high)</div>
+          <label class="settings-row-label" for="s-goal-high">Goal weight (high)</label>
           <input class="settings-row-input" id="s-goal-high" type="number" step="0.1" placeholder="lbs" value="${s.goalWeightHigh || ''}">
         </div>
         <div class="settings-row">
-          <div class="settings-row-label">App start date</div>
+          <label class="settings-row-label" for="s-start-date">App start date</label>
           <input class="settings-row-input" id="s-start-date" type="date" value="${s.appStartDate || todayStr()}">
         </div>
         <div class="settings-row">
@@ -3411,7 +3766,7 @@ function renderSettings() {
           </label>
         </div>
         <div class="settings-row">
-          <div class="settings-row-label">Usual wake time</div>
+          <label class="settings-row-label" for="s-wake">Usual wake time</label>
           <input class="settings-row-input" id="s-wake" type="time" value="${s.usualWakeTime || '07:00'}">
         </div>
       </div>
@@ -3421,16 +3776,16 @@ function renderSettings() {
       <div class="settings-section-title">Time Cutoffs</div>
       <div class="settings-group">
         <div class="settings-row">
-          <div class="settings-row-label">Bedtime target</div>
+          <label class="settings-row-label" for="s-bedtime">Bedtime target</label>
           <input class="settings-row-input" id="s-bedtime" type="time" value="${s.bedtimeTarget || '22:30'}">
         </div>
         <div class="settings-row">
-          <div class="settings-row-label">Eating cutoff</div>
+          <label class="settings-row-label" for="s-eat-cutoff">Eating cutoff</label>
           <input class="settings-row-input" id="s-eat-cutoff" type="time" value="${s.eatCutoff || '19:00'}">
         </div>
         <p class="settings-note">If you are breastfeeding or genuinely hungry in the evening, eating enough always takes priority over this cutoff.</p>
         <div class="settings-row">
-          <div class="settings-row-label">Caffeine cutoff</div>
+          <label class="settings-row-label" for="s-caffeine-cutoff">Caffeine cutoff</label>
           <input class="settings-row-input" id="s-caffeine-cutoff" type="time" value="${s.caffeineCutoff || '13:00'}">
         </div>
       </div>
@@ -3439,11 +3794,11 @@ function renderSettings() {
     <div class="settings-section">
       <div class="settings-section-title">Rewards</div>
       <div class="settings-group">
-        <div class="settings-btn-row" id="s-set-goal">
+        <div class="settings-btn-row" role="button" tabindex="0" id="s-set-goal">
           <div class="settings-btn-label">Set reward goal</div>
           <div class="settings-btn-desc">Name your reward goal and set a points target</div>
         </div>
-        <div class="settings-btn-row" id="s-manual-points">
+        <div class="settings-btn-row" role="button" tabindex="0" id="s-manual-points">
           <div class="settings-btn-label">Manual point adjustment</div>
           <div class="settings-btn-desc">Correct errors in your point balance</div>
         </div>
@@ -3453,11 +3808,11 @@ function renderSettings() {
     <div class="settings-section">
       <div class="settings-section-title">Customization</div>
       <div class="settings-group">
-        <div class="settings-btn-row" id="s-habits">
+        <div class="settings-btn-row" role="button" tabindex="0" id="s-habits">
           <div class="settings-btn-label">Customize habits</div>
           <div class="settings-btn-desc">Toggle, rename, or add habit items</div>
         </div>
-        <div class="settings-btn-row" id="s-activities">
+        <div class="settings-btn-row" role="button" tabindex="0" id="s-activities">
           <div class="settings-btn-label">Customize exercise activities</div>
           <div class="settings-btn-desc">Edit activity menu and priority items</div>
         </div>
@@ -3527,6 +3882,10 @@ function renderSettings() {
           </div>
           <label class="toggle"><input type="checkbox" id="s-notif-morning" ${s.notifMorningCheckin ? 'checked' : ''}><div class="toggle-track"></div></label>
         </div>
+        <div style="padding:13px 16px">
+          <button class="btn btn-outline btn-sm btn-full" id="s-notif-test">Send test notification</button>
+          <p class="settings-note" style="margin:10px 0 0">${pushStatus}</p>
+        </div>
       </div>
     </div>` : ''}
 
@@ -3534,7 +3893,7 @@ function renderSettings() {
     <div class="settings-section">
       <div class="settings-section-title">Measurement Tracking</div>
       <div class="settings-group">
-        <div class="settings-btn-row" id="s-edit-measurements">
+        <div class="settings-btn-row" role="button" tabindex="0" id="s-edit-measurements">
           <div class="settings-btn-label">Edit tracked measurements</div>
           <div class="settings-btn-desc">Choose which body measurements to track each month</div>
         </div>
@@ -3545,14 +3904,14 @@ function renderSettings() {
       <div class="settings-section-title">Data &amp; Backup</div>
       ${renderSheetsSyncSection(s)}
       <div class="settings-group" style="margin-top:12px">
-        <div class="settings-btn-row" id="s-export">
+        <div class="settings-btn-row" role="button" tabindex="0" id="s-export">
           <div class="settings-btn-label">Export all data (JSON)</div>
         </div>
-        <div class="settings-btn-row" id="s-import">
+        <div class="settings-btn-row" role="button" tabindex="0" id="s-import">
           <div class="settings-btn-label">Import data from backup</div>
           <div class="settings-btn-desc">Restore a previous JSON export</div>
         </div>
-        <div class="settings-btn-row" id="s-reset">
+        <div class="settings-btn-row" role="button" tabindex="0" id="s-reset">
           <div class="settings-btn-label danger-btn">Reset all data</div>
           <div class="settings-btn-desc">This cannot be undone</div>
         </div>
@@ -3563,6 +3922,15 @@ function renderSettings() {
   `;
 
   screen.innerHTML = html;
+
+  screen.querySelectorAll('.settings-btn-row[role="button"]').forEach(row => {
+    row.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        row.click();
+      }
+    });
+  });
 
   // Auto-save on change for inputs
   const fields = [
@@ -3637,6 +4005,8 @@ function renderSettings() {
         const perm = await Notifications.requestPermission();
         if (perm === 'denied') renderSettings(); // re-render to show blocked message
       }
+      Notifications.schedule();
+      await Push.sync(Store.getSettings(), { subscribeWhenEnabled: e.target.checked });
       // Also refresh today screen
       if (currentScreen === 'today') renderToday();
     });
@@ -3652,12 +4022,16 @@ function renderSettings() {
   notifToggles.forEach(([elId, key]) => {
     screen.querySelector('#' + elId)?.addEventListener('change', async e => {
       const s = Store.getSettings();
-      if (e.target.checked && Notification.permission !== 'granted') {
+      if (e.target.checked && (!('Notification' in window) || Notification.permission !== 'granted')) {
         const perm = await Notifications.requestPermission();
         if (perm !== 'granted') { e.target.checked = false; renderSettings(); return; }
       }
       s[key] = e.target.checked;
       Store.saveSettings(s);
+      Notifications.schedule();
+      const ok = await Push.sync(s, { subscribeWhenEnabled: e.target.checked });
+      if (!ok) showToast('Push subscription failed. Check worker setup.', 'error');
+      renderSettings();
     });
   });
 
@@ -3665,7 +4039,11 @@ function renderSettings() {
     const s = Store.getSettings();
     s.notifMorningTime = e.target.value;
     Store.saveSettings(s);
+    Notifications.schedule();
+    Push.updatePrefs();
   });
+
+  screen.querySelector('#s-notif-test')?.addEventListener('click', () => Notifications.sendTest());
 
   screen.querySelector('#s-edit-measurements')?.addEventListener('click', () => {
     openMeasurementSetup(() => renderSettings());
@@ -3732,14 +4110,43 @@ function renderSettings() {
 /* ─── Modal System ───────────────────────────────────────────────────────── */
 
 let modalStack = [];
+let modalPreviousFocus = null;
+
+function setBackgroundInert(activeEl, inert) {
+  const app = document.getElementById('app');
+  if (!app || !activeEl) return;
+  [...app.children].forEach(child => {
+    if (child === activeEl || child.id === 'toast-container') return;
+    if (inert) {
+      child.setAttribute('aria-hidden', 'true');
+      child.setAttribute('inert', '');
+      child.inert = true;
+    } else {
+      child.removeAttribute('aria-hidden');
+      child.removeAttribute('inert');
+      child.inert = false;
+    }
+  });
+}
+
+function getFocusable(container) {
+  return [...container.querySelectorAll('button, [href], input, select, textarea, details, [tabindex]:not([tabindex="-1"])')]
+    .filter(el => !el.disabled && el.offsetParent !== null);
+}
 
 function openModal(renderFn) {
   const overlay = document.getElementById('modal-overlay');
   const body    = document.getElementById('modal-body');
+  const wasHidden = overlay.classList.contains('hidden');
+  if (wasHidden) modalPreviousFocus = document.activeElement;
   overlay.classList.remove('hidden');
+  overlay.removeAttribute('aria-hidden');
   body.innerHTML = '';
   renderFn(body);
   modalStack.push(renderFn);
+  setBackgroundInert(overlay, true);
+  const focusTarget = getFocusable(overlay)[0] || document.getElementById('modal-sheet') || overlay;
+  setTimeout(() => focusTarget.focus?.(), 0);
 
   // Close on backdrop click
   document.getElementById('modal-backdrop').onclick = closeModal;
@@ -3748,8 +4155,12 @@ function openModal(renderFn) {
 function closeModal() {
   const overlay = document.getElementById('modal-overlay');
   overlay.classList.add('hidden');
+  overlay.setAttribute('aria-hidden', 'true');
   document.getElementById('modal-body').innerHTML = '';
   modalStack = [];
+  setBackgroundInert(overlay, false);
+  modalPreviousFocus?.focus?.();
+  modalPreviousFocus = null;
 }
 
 /* ── Workout Modal ── */
@@ -3757,7 +4168,7 @@ function closeModal() {
 let workoutDraft = { activityId: null, activityLabel: null, priority: false, duration: 30, intensity: 'Moderate', note: '' };
 
 function openWorkoutModal(presetActivity) {
-  workoutDraft = { activityId: presetActivity, activityLabel: null, priority: false, duration: 30, intensity: 'Moderate', note: '', date: todayStr() };
+  workoutDraft = { activityId: presetActivity, activityLabel: null, priority: false, duration: 30, intensity: 'Moderate', note: '', date: viewingDate };
   if (presetActivity === 'strength') {
     workoutDraft.activityId = 'strength';
     workoutDraft.activityLabel = 'Strength training';
@@ -3800,7 +4211,7 @@ function renderWorkoutStep1(body) {
 function openWorkoutOtherStep(body) {
   body.innerHTML = `
     <div class="modal-title">Other Activity</div>
-    <div class="step-label">What did you do?</div>
+    <label class="step-label" for="other-activity-input">What did you do?</label>
     <input type="text" class="form-input mb-8" id="other-activity-input" placeholder="e.g. Hiking, Swimming, Dance…" maxlength="50" autocomplete="off">
     <p class="text-small text-muted mb-16">This will be saved to your activity menu for future sessions.</p>
     <button class="btn btn-primary btn-full" id="other-activity-save">Continue</button>
@@ -3839,7 +4250,7 @@ function openWorkoutOtherStep(body) {
 function renderWorkoutStep2(body) {
   body.innerHTML = `
     <div class="modal-title">${escHtml(workoutDraft.activityLabel || 'Workout')}</div>
-    <div class="step-label">Duration</div>
+    <label class="step-label" for="dur-slider">Duration</label>
     <div class="duration-display" id="dur-display">${workoutDraft.duration} <span>min</span></div>
     <input type="range" id="dur-slider" min="5" max="120" step="5" value="${workoutDraft.duration}">
     <div class="step-label">Intensity</div>
@@ -3848,9 +4259,9 @@ function renderWorkoutStep2(body) {
         <button class="intensity-btn ${workoutDraft.intensity === i ? 'selected' : ''}" data-intensity="${i}">${i}</button>
       `).join('')}
     </div>
-    <div class="step-label">Note (optional)</div>
+    <label class="step-label" for="workout-note">Note (optional)</label>
     <input type="text" class="form-input mb-16" id="workout-note" placeholder="Any notes…" maxlength="100" value="${escHtml(workoutDraft.note)}">
-    <div class="step-label">Date</div>
+    <label class="step-label" for="workout-date">Date</label>
     <input type="date" class="form-input mb-16" id="workout-date" value="${workoutDraft.date}" max="${todayStr()}">
     <button class="btn btn-primary btn-full" id="save-workout-btn">Save Workout</button>
   `;
@@ -3900,7 +4311,7 @@ function saveWorkout() {
   Store.saveWorkouts(workouts);
 
   const pts = workout.priority ? 2 : 1;
-  Points.add(pts, `Workout: ${workout.activityLabel}`);
+  Points.add(pts, `Workout: ${workout.activityLabel}`, workoutDate);
 
   closeModal();
   showToast(`Workout logged! +${pts} pt${pts > 1 ? 's' : ''}`, 'success');
@@ -3911,7 +4322,7 @@ function saveWorkout() {
   if (!hChecked[habitKey]) {
     hChecked[habitKey] = true;
     Store.saveHabits(workoutDate, hChecked);
-    if (workoutDate === todayStr() && currentScreen === 'today') renderToday();
+    if (currentScreen === 'today') renderToday();
   }
 
   const newBadges = Badges.check();
@@ -3975,14 +4386,14 @@ function openWeighInModal() {
   openModal(body => {
     const weighIns = Store.getWeighIns();
     const last = weighIns.length ? weighIns[weighIns.length-1].weight : '';
-    body.innerHTML = `
-      <div class="modal-title">Log Weigh-In</div>
-      <div class="form-group">
-        <label class="form-label">Weight (lbs)</label>
+      body.innerHTML = `
+        <div class="modal-title">Log Weigh-In</div>
+        <div class="form-group">
+        <label class="form-label" for="weighin-input">Weight (lbs)</label>
         <input class="form-input" id="weighin-input" type="number" step="0.1" placeholder="${last || 'e.g. 162.5'}" inputmode="decimal">
       </div>
       <div class="form-group">
-        <label class="form-label">Date</label>
+        <label class="form-label" for="weighin-date">Date</label>
         <input class="form-input" id="weighin-date" type="date" value="${todayStr()}">
       </div>
       <button class="btn btn-primary btn-full" id="save-weighin-btn">Log Weight</button>
@@ -3999,14 +4410,15 @@ function openWeighInModal() {
       const weighIns = Store.getWeighIns();
       // Replace if same date
       const idx = weighIns.findIndex(w => w.date === date);
+      const isNewWeighIn = idx < 0;
       if (idx >= 0) weighIns[idx] = { date, weight };
       else weighIns.push({ date, weight });
       weighIns.sort((a,b) => a.date.localeCompare(b.date));
       Store.saveWeighIns(weighIns);
 
-      Points.add(3, 'Weekly weigh-in');
+      if (isNewWeighIn) Points.add(3, 'Weekly weigh-in');
       closeModal();
-      showToast('Weight logged! +3 pts', 'success');
+      showToast(isNewWeighIn ? 'Weight logged! +3 pts' : 'Weight updated', 'success');
 
       const newBadges = Badges.check();
       if (newBadges.length) setTimeout(() => Badges.showCelebration(newBadges), 300);
@@ -4032,11 +4444,12 @@ function _goalScreen1(body) {
   body.innerHTML = `
     <div class="modal-title">What are you working toward?</div>
     <div class="form-group">
+      <label class="form-label" for="goal-name">Goal name</label>
       <input class="form-input" id="goal-name" type="text" placeholder="e.g. Rouje dress"
              value="${escHtml(goals.name || '')}" maxlength="60" autocomplete="off">
     </div>
     <div class="form-group">
-      <label class="form-label">What does it cost? <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+      <label class="form-label" for="goal-amount">What does it cost? <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
       <input class="form-input" id="goal-amount" type="number" step="1" min="0"
              placeholder="Dollar amount" value="${goals.amount || ''}">
     </div>
@@ -4186,6 +4599,7 @@ function openIntentionModal(wsStr) {
         `).join('')}
       </div>
       <div class="form-group">
+        <label class="form-label" for="intention-text">Custom intention</label>
         <input class="form-input" id="intention-text" type="text" placeholder="Or write a short intention…" maxlength="100">
       </div>
       <button class="btn btn-primary btn-full" id="save-intention-btn">Set Intention</button>
@@ -4204,9 +4618,10 @@ function openIntentionModal(wsStr) {
 
     body.querySelector('#skip-intention-btn').addEventListener('click', () => {
       const i = Store.getWeeklyIntentions();
-      i[wsStr] = { pillar: null, text: '' };
+      i[wsStr] = { skipped: true };
       Store.saveWeeklyIntentions(i);
       closeModal();
+      renderWeek();
     });
 
     body.querySelector('#save-intention-btn').addEventListener('click', () => {
@@ -4233,11 +4648,11 @@ function openManualPointsModal() {
       <div class="modal-title">Manual Point Adjustment</div>
       <p class="text-muted text-small mb-16">Current balance: <strong>${pts.spendable} pts</strong> (${pts.total_earned} total earned)</p>
       <div class="form-group">
-        <label class="form-label">Adjustment amount (+ to add, - to deduct)</label>
+        <label class="form-label" for="adj-amount">Adjustment amount (+ to add, - to deduct)</label>
         <input class="form-input" id="adj-amount" type="number" step="1" placeholder="e.g. 10 or -5">
       </div>
       <div class="form-group">
-        <label class="form-label">Reason</label>
+        <label class="form-label" for="adj-reason">Reason</label>
         <input class="form-input" id="adj-reason" type="text" placeholder="e.g. Correction for missed check-in" maxlength="80">
       </div>
       <button class="btn btn-primary btn-full" id="confirm-adj-btn">Apply Adjustment</button>
@@ -4429,11 +4844,11 @@ function renderHabitsCustomizerBody(body) {
         b.innerHTML = `
           <div class="modal-title">Add Habit</div>
           <div class="form-group">
-            <label class="form-label">Habit name</label>
+            <label class="form-label" for="new-habit-label">Habit name</label>
             <input class="form-input" id="new-habit-label" type="text" placeholder="e.g. Took vitamins" maxlength="60" autocomplete="off">
           </div>
           <div class="form-group">
-            <label class="form-label">Domain</label>
+            <label class="form-label" for="new-habit-pillar">Domain</label>
             <select class="form-input form-select" id="new-habit-pillar">
               ${['sleep','nutrition','movement','stress'].map(p =>
                 `<option value="${p}" ${p === pillar ? 'selected' : ''}>${PILLAR_META[p].label}</option>`
@@ -4441,7 +4856,7 @@ function renderHabitsCustomizerBody(body) {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Also contributes to <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+            <label class="form-label" for="new-habit-also">Also contributes to <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
             <select class="form-input form-select" id="new-habit-also">
               <option value="">— None —</option>
               ${['sleep','nutrition','movement','stress'].filter(p => p !== pillar).map(p =>
@@ -4450,7 +4865,7 @@ function renderHabitsCustomizerBody(body) {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Points</label>
+            <label class="form-label" for="new-habit-pts">Points</label>
             <select class="form-input form-select" id="new-habit-pts">
               <option value="1">1 point</option>
               <option value="2">2 points</option>
@@ -4554,11 +4969,14 @@ function celebrate(title, message) {
   const el = document.createElement('div');
   el.id = 'celebration-overlay';
   el.innerHTML = `
-    <div class="celebration-icon">${title.split(' ')[0]}</div>
-    <div class="celebration-title">${title.replace(/^\S+\s/, '')}</div>
-    <div class="celebration-text">${message}</div>
+    <div class="celebration-icon"></div>
+    <div class="celebration-title"></div>
+    <div class="celebration-text"></div>
     <button class="btn btn-primary" id="celebrate-close">Got it</button>
   `;
+  el.querySelector('.celebration-icon').textContent = title.split(' ')[0] || '';
+  el.querySelector('.celebration-title').textContent = title.replace(/^\S+\s/, '');
+  el.querySelector('.celebration-text').textContent = message;
   document.body.appendChild(el);
 
   el.querySelector('#celebrate-close').addEventListener('click', () => el.remove());
@@ -4589,6 +5007,22 @@ function showToast(message, type = '') {
 }
 
 /* ─── Data Export / Import ───────────────────────────────────────────────── */
+
+function getAppStateBackup() {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith('bloom_')) data[k] = localStorage.getItem(k);
+  }
+  return data;
+}
+
+function restoreAppStateBackup(data) {
+  if (!data || typeof data !== 'object') return;
+  Object.entries(data).forEach(([k, v]) => {
+    if (k.startsWith('bloom_') && typeof v === 'string') localStorage.setItem(k, v);
+  });
+}
 
 function importData() {
   const input = document.createElement('input');
@@ -4624,11 +5058,7 @@ function importData() {
 }
 
 function exportData() {
-  const data = {};
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k.startsWith('bloom_')) data[k] = localStorage.getItem(k);
-  }
+  const data = getAppStateBackup();
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -4663,7 +5093,24 @@ function escHtml(s) {
 /* ─── Keyboard / Accessibility ───────────────────────────────────────────── */
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeModal();
+  const overlay = document.getElementById('modal-overlay');
+  const modalOpen = overlay && !overlay.classList.contains('hidden');
+  const onboarding = document.getElementById('onboarding');
+  const trapEl = modalOpen ? overlay : onboarding;
+  if (e.key === 'Escape' && modalOpen) closeModal();
+  if (e.key === 'Tab' && trapEl) {
+    const focusable = getFocusable(trapEl);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 });
 
 /* ─── First-visit Hints ──────────────────────────────────────────────────── */
@@ -4771,9 +5218,11 @@ function openOnboarding() {
     <div id="ob-dots"></div>
   `;
   document.getElementById('app').appendChild(el);
+  setBackgroundInert(el, true);
 
   document.getElementById('ob-skip').addEventListener('click', closeOnboarding);
   renderObScreen(0);
+  setTimeout(() => getFocusable(el)[0]?.focus(), 0);
 }
 
 const OB_SCREENS = [
@@ -4816,10 +5265,10 @@ const OB_SCREENS = [
         <button class="ob-chip" data-label="">＋ Something else</button>
       </div>
       <div class="form-group">
-        <input class="form-input" id="ob-goal-name" type="text" placeholder="Name your goal" maxlength="60" autocomplete="off" value="${escHtml(g.name || '')}">
+        <input class="form-input" id="ob-goal-name" type="text" aria-label="Goal name" placeholder="Name your goal" maxlength="60" autocomplete="off" value="${escHtml(g.name || '')}">
       </div>
       <div class="form-group">
-        <input class="form-input" id="ob-goal-amount" type="number" placeholder="How much does it cost? ($)" step="1" min="0" value="${g.amount || ''}">
+        <input class="form-input" id="ob-goal-amount" type="number" aria-label="Goal cost" placeholder="How much does it cost? ($)" step="1" min="0" value="${g.amount || ''}">
       </div>
       <p class="ob-note">You can change this anytime in Settings.</p>
       <button class="ob-btn" id="ob-next">Next</button>
@@ -4833,18 +5282,18 @@ const OB_SCREENS = [
       <h1 class="ob-headline">A few things to get you started.</h1>
       <p class="ob-body">You can update all of these anytime in Settings.</p>
       <div class="form-group">
-        <input class="form-input" id="ob-name" type="text" placeholder="What should we call you?" maxlength="40" autocomplete="off" value="${escHtml(s.name || '')}">
+        <input class="form-input" id="ob-name" type="text" aria-label="Name" placeholder="What should we call you?" maxlength="40" autocomplete="off" value="${escHtml(s.name || '')}">
       </div>
       <div class="form-group">
-        <input class="form-input" id="ob-start-weight" type="number" placeholder="Starting weight (lbs)" step="0.1" min="50" value="${s.startingWeight || ''}">
+        <input class="form-input" id="ob-start-weight" type="number" aria-label="Starting weight" placeholder="Starting weight (lbs)" step="0.1" min="50" value="${s.startingWeight || ''}">
         <p class="ob-note" style="margin-top:8px">Used to track your progress over time.</p>
       </div>
       <div class="form-group">
         <label class="form-label">Goal weight range (lbs)</label>
         <div style="display:flex;gap:8px;align-items:center">
-          <input class="form-input" id="ob-goal-low"  type="number" placeholder="From" step="0.5" style="flex:1" value="${s.goalWeightLow || ''}">
+          <input class="form-input" id="ob-goal-low"  type="number" aria-label="Goal weight low" placeholder="From" step="0.5" style="flex:1" value="${s.goalWeightLow || ''}">
           <span style="color:var(--text-muted);flex-shrink:0">to</span>
-          <input class="form-input" id="ob-goal-high" type="number" placeholder="To"   step="0.5" style="flex:1" value="${s.goalWeightHigh || ''}">
+          <input class="form-input" id="ob-goal-high" type="number" aria-label="Goal weight high" placeholder="To"   step="0.5" style="flex:1" value="${s.goalWeightHigh || ''}">
         </div>
       </div>
       <div class="toggle-row" style="border:none;padding:0;margin-bottom:16px">
@@ -4894,6 +5343,7 @@ function renderObScreen(n) {
 
   // Next button
   document.getElementById('ob-next')?.addEventListener('click', () => obAdvance(n));
+  setTimeout(() => getFocusable(document.getElementById('onboarding'))[0]?.focus(), 0);
 
   // Screen 3 chips
   document.querySelectorAll('.ob-chip').forEach(chip => {
@@ -4968,6 +5418,7 @@ function closeOnboarding() {
   Store.set('onboarding_complete', true);
   const el = document.getElementById('onboarding');
   if (el) {
+    setBackgroundInert(el, false);
     el.style.opacity = '0';
     el.style.transition = 'opacity 0.3s';
     setTimeout(() => { el.remove(); showHintIfNeeded(currentScreen); }, 300);
@@ -5261,6 +5712,11 @@ const SheetsSync = {
     rows.push(['_points_json',  JSON.stringify(Store.getPoints())]);
     rows.push(['_goals_json',   JSON.stringify(Store.getGoals())]);
     rows.push(['_habitdefs_json', JSON.stringify(Store.getHabitDefs())]);
+    const appStateJson = JSON.stringify(getAppStateBackup());
+    const chunkSize = 40000;
+    for (let i = 0; i < appStateJson.length; i += chunkSize) {
+      rows.push([`_appstate_json_${String(i / chunkSize).padStart(3, '0')}`, appStateJson.slice(i, i + chunkSize)]);
+    }
     await this._writeTab(id, 'Settings', rows);
   },
 
@@ -5300,6 +5756,12 @@ const SheetsSync = {
       Store.saveSettings(s);
 
       // Restore complex state from JSON blobs
+      const appStateJson = Object.keys(settingsMap)
+        .filter(k => k.startsWith('_appstate_json_'))
+        .sort()
+        .map(k => settingsMap[k])
+        .join('');
+      if (appStateJson) { try { restoreAppStateBackup(JSON.parse(appStateJson)); } catch {} }
       if (settingsMap['_points_json'])    { try { Store.savePoints(JSON.parse(settingsMap['_points_json'])); } catch {} }
       if (settingsMap['_goals_json'])     { try { Store.saveGoals(JSON.parse(settingsMap['_goals_json'])); } catch {} }
       if (settingsMap['_habitdefs_json']) { try { Store.set('habit_defs', JSON.parse(settingsMap['_habitdefs_json'])); } catch {} }
@@ -5425,6 +5887,8 @@ function showRestorePrompt() {
 }
 
 function init() {
+  registerChartPlugins();
+
   // Dismiss splash after a brief moment
   const splash = document.getElementById('splash');
   if (splash) {
@@ -5513,9 +5977,14 @@ function init() {
   setInterval(updateHeader, 60 * 60 * 1000);
 
   // Check pending notifications on load and on visibility change
-  setTimeout(() => Notifications.checkPending(), 2000);
+  setTimeout(async () => {
+    await Notifications.checkPending();
+    Notifications.schedule();
+  }, 2000);
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) Notifications.checkPending();
+    if (!document.hidden) {
+      Notifications.checkPending().then(() => Notifications.schedule());
+    }
   });
 }
 

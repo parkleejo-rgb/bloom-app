@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=14">
+  <link rel="stylesheet" href="styles.css?v=16">
 </head>
 <body>
   <div id="app">
@@ -87,9 +87,9 @@
     </nav>
 
     <!-- Modal Overlay -->
-    <div id="modal-overlay" class="hidden" role="dialog" aria-modal="true">
+    <div id="modal-overlay" class="hidden" role="dialog" aria-modal="true" aria-hidden="true">
       <div id="modal-backdrop"></div>
-      <div id="modal-sheet">
+      <div id="modal-sheet" tabindex="-1">
         <div id="modal-handle"></div>
         <div id="modal-body"></div>
       </div>
@@ -108,9 +108,10 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="app.js?v=26"></script>
+  <script src="app.js?v=36"></script>
 </body>
 </html>

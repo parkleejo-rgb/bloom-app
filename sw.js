@@ -1,6 +1,6 @@
 /* Bloom Service Worker — cache-first for offline PWA support */
 
-const CACHE = 'bloom-v10';
+const CACHE = 'bloom-v19';
 const ASSETS = [
   './',
   './index.html',
@@ -27,6 +27,34 @@ self.addEventListener('activate', e => {
     )
   );
   self.clients.claim();
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const targetUrl = e.notification.data?.url || './';
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const existing = list.find(c => c.url.includes(self.location.origin) && 'focus' in c);
+      return existing ? existing.focus() : clients.openWindow(targetUrl);
+    })
+  );
+});
+
+self.addEventListener('push', e => {
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch {}
+
+  const title = data.title || 'Bloom';
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || '',
+      icon: './apple-touch-icon.png',
+      badge: './apple-touch-icon.png',
+      tag: data.tag || 'bloom-reminder',
+      renotify: false,
+      data: { url: data.url || './' },
+    })
+  );
 });
 
 self.addEventListener('fetch', e => {
