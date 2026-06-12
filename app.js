@@ -3018,11 +3018,38 @@ function renderExercise() {
   const wsStr = dateStr(ws);
   const we = new Date(ws); we.setDate(we.getDate() + 6);
   const weStr = dateStr(we);
+  const monthStart = todayStr().slice(0, 8) + '01';
+  const monthWorkouts = workouts.filter(w => w.date >= monthStart && w.date <= todayStr());
 
   const weekWorkouts = workouts.filter(w => w.date >= wsStr && w.date <= weStr);
   const weekStrength = weekWorkouts.filter(w => w.priority);
   const weekOther    = weekWorkouts.filter(w => !w.priority);
   const totalSessions = weekWorkouts.length;
+  const weekMinutes = weekWorkouts.reduce((sum, w) => sum + (parseInt(w.duration, 10) || 0), 0);
+  const lastWorkout = workouts[0] || null;
+  const lastWorkoutLabel = lastWorkout
+    ? `${formatDateShort(lastWorkout.date)} · ${lastWorkout.activityLabel}`
+    : 'No workouts yet';
+  const weekActivityCounts = weekWorkouts.reduce((map, w) => {
+    const key = w.activityLabel || 'Workout';
+    map[key] = (map[key] || 0) + 1;
+    return map;
+  }, {});
+  const topActivities = Object.entries(weekActivityCounts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 3);
+  const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const weekDays = getWeekDays(ws);
+  const dayStrip = weekDays.map((d, i) => {
+    const dayWorkouts = weekWorkouts.filter(w => w.date === d);
+    const hasStrength = dayWorkouts.some(w => w.priority);
+    const cls = ['exercise-day', dayWorkouts.length ? 'done' : '', hasStrength ? 'strength' : '']
+      .filter(Boolean).join(' ');
+    const label = dayWorkouts.length
+      ? `${dayLabels[i]}: ${dayWorkouts.length} workout${dayWorkouts.length !== 1 ? 's' : ''}`
+      : `${dayLabels[i]}: no workout logged`;
+    return `<span class="${cls}" aria-label="${label}" title="${label}">${dayLabels[i]}</span>`;
+  }).join('');
 
   // Session pips (3 min, 5 stretch)
   const minTarget = 3;
@@ -3035,16 +3062,43 @@ function renderExercise() {
   });
 
   let html = `
-    <div class="card">
-      <div class="card-title">This Week</div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+    <div class="card exercise-summary-card">
+      <div class="exercise-summary-head">
+        <div>
+          <div class="card-title">This Week</div>
+          <div class="exercise-summary-main">${totalSessions} session${totalSessions !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="exercise-summary-minutes">
+          <span>${weekMinutes}</span>
+          <small>min</small>
+        </div>
+      </div>
+      <div class="exercise-goal-row">
         <div class="week-session-indicator">
           ${pips.map(p => `<div class="session-pip ${p.startsWith('empty') ? '' : p}"></div>`).join('')}
         </div>
-        <span class="text-small text-muted">${totalSessions} session${totalSessions !== 1 ? 's' : ''} (${minTarget} min goal)</span>
+        <span class="text-small text-muted">${minTarget} session goal · ${stretchTarget} stretch</span>
       </div>
-      <div class="text-small text-muted">
-        ${weekStrength.length} strength · ${weekOther.length} other
+      <div class="exercise-stat-grid">
+        <div class="exercise-stat">
+          <span>${weekStrength.length}</span>
+          <small>Strength</small>
+        </div>
+        <div class="exercise-stat">
+          <span>${weekOther.length}</span>
+          <small>Other</small>
+        </div>
+        <div class="exercise-stat">
+          <span>${monthWorkouts.length}</span>
+          <small>This month</small>
+        </div>
+      </div>
+      <div class="exercise-day-strip" role="list" aria-label="Workout days this week">${dayStrip}</div>
+      <div class="exercise-last-line">Last: ${escHtml(lastWorkoutLabel)}</div>
+      <div class="exercise-chip-row">
+        ${topActivities.length
+          ? topActivities.map(([label, count]) => `<span class="exercise-chip">${escHtml(label)} · ${count}</span>`).join('')
+          : '<span class="exercise-chip muted">No activity logged this week</span>'}
       </div>
     </div>
 
