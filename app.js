@@ -1763,11 +1763,15 @@ function fmtSleepHours(hrs) {
   return m > 0 ? `${h} hrs ${m} min` : `${h} hrs`;
 }
 
+function fmtWakeups(count) {
+  const n = parseInt(count, 10);
+  if (!Number.isFinite(n) || n < 0) return 'wake-ups not logged';
+  return `${n} wake-up${n === 1 ? '' : 's'}`;
+}
+
 function renderSleepCard() {
   const s     = Store.getSettings();
   if (!s.featSleepTracking) return '';
-  const now   = new Date();
-  if (now.getHours() >= 12) return ''; // only show in the morning
   const today = todayStr();
   const logs  = Store.getSleepLogs();
   const entry = logs.find(l => l.date === today);
@@ -1783,7 +1787,7 @@ function renderSleepCard() {
       <div class="today-optional-card" id="sleep-card">
         <div class="today-optional-label">last night's sleep</div>
         <div class="sleep-logged-row" id="sleep-logged-summary">
-          <span class="sleep-logged-text">Last night: ${fmtSleepHours(hrs)}</span>
+          <span class="sleep-logged-text">Last night: ${fmtSleepHours(hrs)} · ${fmtWakeups(entry.wakeups)}</span>
           <button class="btn-text-link" id="sleep-edit-btn">Edit</button>
         </div>
         <div class="sleep-inputs hidden" id="sleep-inputs">
@@ -1794,6 +1798,10 @@ function renderSleepCard() {
           <div class="sleep-input-row">
             <label class="sleep-input-label">Woke up around:</label>
             <input type="time" class="settings-row-input" id="wake-time-input" value="${entry.wakeTime}">
+          </div>
+          <div class="sleep-input-row">
+            <label class="sleep-input-label">Wake-ups:</label>
+            <input type="number" class="settings-row-input" id="wakeups-input" min="0" max="20" step="1" inputmode="numeric" value="${entry.wakeups ?? ''}" placeholder="e.g. 3">
           </div>
           <button class="btn btn-sm btn-primary" id="sleep-save-btn" style="margin-top:8px">Save</button>
         </div>
@@ -1811,6 +1819,10 @@ function renderSleepCard() {
         <label class="sleep-input-label">Woke up around:</label>
         <input type="time" class="settings-row-input" id="wake-time-input" value="${wakeDefault}">
       </div>
+      <div class="sleep-input-row">
+        <label class="sleep-input-label">Wake-ups:</label>
+        <input type="number" class="settings-row-input" id="wakeups-input" min="0" max="20" step="1" inputmode="numeric" placeholder="e.g. 3">
+      </div>
       <button class="btn btn-sm btn-primary" id="sleep-log-btn" style="margin-top:8px">Log sleep</button>
     </div>`;
 }
@@ -1821,9 +1833,11 @@ function bindSleepCard(screen) {
   screen.querySelector('#sleep-log-btn')?.addEventListener('click', () => {
     const st = screen.querySelector('#sleep-time-input')?.value;
     const wt = screen.querySelector('#wake-time-input')?.value;
+    const wakeupsRaw = screen.querySelector('#wakeups-input')?.value;
+    const wakeups = wakeupsRaw === '' ? null : Math.max(0, parseInt(wakeupsRaw, 10) || 0);
     if (!st || !wt) return;
     const logs = Store.getSleepLogs().filter(l => l.date !== today);
-    logs.push({ date: today, sleepTime: st, wakeTime: wt });
+    logs.push({ date: today, sleepTime: st, wakeTime: wt, wakeups });
     Store.saveSleepLogs(logs);
     Points.add(1, 'Sleep logged');
     updatePointsBadge();
@@ -1839,9 +1853,11 @@ function bindSleepCard(screen) {
   screen.querySelector('#sleep-save-btn')?.addEventListener('click', () => {
     const st = screen.querySelector('#sleep-time-input')?.value;
     const wt = screen.querySelector('#wake-time-input')?.value;
+    const wakeupsRaw = screen.querySelector('#wakeups-input')?.value;
+    const wakeups = wakeupsRaw === '' ? null : Math.max(0, parseInt(wakeupsRaw, 10) || 0);
     if (!st || !wt) return;
     const logs = Store.getSleepLogs().filter(l => l.date !== today);
-    logs.push({ date: today, sleepTime: st, wakeTime: wt });
+    logs.push({ date: today, sleepTime: st, wakeTime: wt, wakeups });
     Store.saveSleepLogs(logs);
     showToast('Saved');
     refreshTodayOptionalCards(screen);
@@ -2103,6 +2119,7 @@ function openPhotoCapture() {
           showToast('Saved. See it in Progress.', 'success');
           const screen = document.getElementById('screen-today');
           refreshTodayOptionalCards(screen);
+          if (currentScreen === 'progress') renderProgress();
         });
       };
       reader.readAsDataURL(file);
@@ -2287,6 +2304,7 @@ function renderMeasurementForm(body) {
     closeModal();
     const screen = document.getElementById('screen-today');
     refreshTodayOptionalCards(screen);
+    if (currentScreen === 'progress') renderProgress();
   });
 }
 
@@ -3473,6 +3491,11 @@ function renderProgress() {
       if (recent28.length > 0) {
         const avgHrs = recent28.reduce((s, l) => s + (calcSleepHours(l.sleepTime, l.wakeTime) || 0), 0) / recent28.length;
         html += `<div class="avg-loss-stat">Average over last 4 weeks: <strong>${fmtSleepHours(avgHrs)}</strong></div>`;
+        const wakeLogs = recent28.filter(l => Number.isFinite(parseInt(l.wakeups, 10)));
+        if (wakeLogs.length > 0) {
+          const avgWakeups = wakeLogs.reduce((s, l) => s + parseInt(l.wakeups, 10), 0) / wakeLogs.length;
+          html += `<div class="avg-loss-stat" style="margin-top:6px">Average wake-ups: <strong>${avgWakeups.toFixed(1)} / night</strong></div>`;
+        }
       }
       if (settings.breastfeeding) {
         html += `<p class="text-small text-muted mt-8" style="font-style:italic">Broken sleep is expected right now. Focus on the trend over weeks, not any single night.</p>`;
@@ -3495,8 +3518,9 @@ function renderProgress() {
     const photos = Store.getProgressPhotos().sort((a,b) => b.date.localeCompare(a.date));
     html += `<div class="screen-section-title">Progress Photos</div>`;
     html += `<div class="card">`;
+    html += `<button class="btn btn-sm btn-primary btn-full mb-12" id="take-progress-photo-btn">Take Progress Photo</button>`;
     if (photos.length === 0) {
-      html += `<div class="empty-state"><p>No photos yet. Your first monthly prompt will appear on the 1st of next month.</p></div>`;
+      html += `<div class="empty-state"><p>No photos yet. You can take one now, and Bloom will still nudge you monthly.</p></div>`;
     } else {
       html += `<div class="photos-grid">`;
       photos.forEach(p => {
@@ -3513,6 +3537,13 @@ function renderProgress() {
       html += `<p class="text-small text-muted mt-8">Progress photos are stored on this device only. They will be lost if you clear your browser data. Export regularly to back them up.</p>`;
     }
     html += `</div>`;
+  } else {
+    html += `<div class="screen-section-title">Progress Photos</div>`;
+    html += `
+      <div class="card">
+        <p class="text-small text-muted mb-12">Progress photos are optional and stored on this device only.</p>
+        <button class="btn btn-sm btn-outline btn-full" id="enable-progress-photos-btn">Enable Progress Photos</button>
+      </div>`;
   }
 
   // Measurements (Feature 5)
@@ -3520,8 +3551,9 @@ function renderProgress() {
     const measurements = Store.getMeasurements().sort((a,b) => a.date.localeCompare(b.date));
     html += `<div class="screen-section-title">Measurements</div>`;
     html += `<div class="card">`;
+    html += `<button class="btn btn-sm btn-primary btn-full mb-12" id="log-measurements-progress-btn">Log Measurements</button>`;
     if (measurements.length === 0) {
-      html += `<div class="empty-state"><p>No measurements yet. Your first monthly prompt will appear on the 1st of next month.</p></div>`;
+      html += `<div class="empty-state"><p>No measurements yet. You can log them now, and Bloom will still nudge you monthly.</p></div>`;
     } else {
       const tracked = (settings.trackedMeasurements || []).map(id => MEASUREMENT_POINTS.find(mp => mp.id === id)).filter(Boolean);
       // Total inches
@@ -3537,6 +3569,13 @@ function renderProgress() {
       html += `<div class="chart-wrap"><canvas id="measurements-chart"></canvas></div>`;
     }
     html += `</div>`;
+  } else {
+    html += `<div class="screen-section-title">Measurements</div>`;
+    html += `
+      <div class="card">
+        <p class="text-small text-muted mb-12">Measurement tracking is optional. Choose the measurements you care about and log them when useful.</p>
+        <button class="btn btn-sm btn-outline btn-full" id="enable-measurements-btn">Enable Measurements</button>
+      </div>`;
   }
 
   screen.innerHTML = html;
@@ -3571,6 +3610,21 @@ function renderProgress() {
 
   // Export photos
   screen.querySelector('#export-photos-btn')?.addEventListener('click', exportProgressPhotos);
+  screen.querySelector('#take-progress-photo-btn')?.addEventListener('click', openPhotoCapture);
+  screen.querySelector('#log-measurements-progress-btn')?.addEventListener('click', openMeasurementModal);
+  screen.querySelector('#enable-progress-photos-btn')?.addEventListener('click', () => {
+    const s = Store.getSettings();
+    s.featProgressPhotos = true;
+    Store.saveSettings(s);
+    renderProgress();
+  });
+  screen.querySelector('#enable-measurements-btn')?.addEventListener('click', () => {
+    const s = Store.getSettings();
+    s.featMeasurements = true;
+    Store.saveSettings(s);
+    renderProgress();
+    openMeasurementModal();
+  });
 
   // Init charts after DOM
   requestAnimationFrame(() => {
@@ -3604,6 +3658,10 @@ function initSleepChart(logs, settings) {
     const h = calcSleepHours(l.sleepTime, l.wakeTime);
     return h !== null ? Math.round(h * 10) / 10 : null;
   });
+  const wakeups = logs.map(l => {
+    const n = parseInt(l.wakeups, 10);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  });
 
   const target = settings.breastfeeding ? 6 : 7;
 
@@ -3618,17 +3676,33 @@ function initSleepChart(logs, settings) {
     type: 'bar',
     data: {
       labels,
-      datasets: [{
-        label: 'Sleep (hrs)',
-        data,
-        backgroundColor: barColors,
-        borderRadius: 4,
-      }],
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Sleep (hrs)',
+          data,
+          backgroundColor: barColors,
+          borderRadius: 4,
+          yAxisID: 'y',
+        },
+        {
+          type: 'line',
+          label: 'Wake-ups',
+          data: wakeups,
+          borderColor: 'rgba(196,147,138,0.85)',
+          backgroundColor: 'rgba(196,147,138,0.15)',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.25,
+          yAxisID: 'y1',
+          spanGaps: true,
+        },
+      ],
     },
     options: {
       responsive: true,
       plugins: {
-        legend: { display: false },
+        legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } },
         annotation: {
           annotations: {
             targetLine: {
@@ -3646,6 +3720,13 @@ function initSleepChart(logs, settings) {
       scales: {
         x: { ticks: { maxTicksLimit: 8, font: { size: 10 } }, grid: { display: false } },
         y: { min: 0, max: 12, ticks: { stepSize: 2 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y1: {
+          position: 'right',
+          min: 0,
+          suggestedMax: 8,
+          ticks: { stepSize: 2 },
+          grid: { drawOnChartArea: false },
+        },
       },
     },
   });
@@ -5437,7 +5518,7 @@ function openHowBloomWorks() {
 
       <div class="how-section">
         <div class="how-heading">Optional features</div>
-        <p>Five optional features are available under Settings -- Optional Features. Sleep tracking adds a morning card to log your estimated sleep window and shows a bar chart over time. The mood, energy, and motivation log adds a daily check-in with pattern charts on the Progress screen. Progress photos lets you capture a monthly photo and view them as a timeline. Measurement tracking records body measurements monthly with a line graph. Notifications let you set up to four optional reminders including streak protection, weigh-in nudge, bedtime reminder, and a morning check-in. All optional features are off by default and can be turned on or off at any time.</p>
+        <p>Five optional features are available under Settings -- Optional Features. Sleep tracking adds a card to log your estimated sleep window and wake-ups, then shows both over time. The mood, energy, and motivation log adds a daily check-in with pattern charts on the Progress screen. Progress photos lets you capture photos from the Progress screen and view them as a timeline, with monthly nudges as a reminder. Measurement tracking records body measurements from the Progress screen with a line graph and monthly nudges. Notifications let you set up to four optional reminders including streak protection, weigh-in nudge, bedtime reminder, and a morning check-in. All optional features are off by default and can be turned on or off at any time.</p>
       </div>
 
       <div class="how-section">
