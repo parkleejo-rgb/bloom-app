@@ -72,7 +72,7 @@ async function handleUpdatePrefs(request, env) {
   const data = await env.SUBS.get(key, 'json');
   if (!data) return json({ error: 'Subscription not found' }, 404);
 
-  data.prefs = prefs || {};
+  data.prefs = { ...(data.prefs || {}), ...(prefs || {}) };
   await env.SUBS.put(key, JSON.stringify(data));
   return json({ ok: true });
 }
@@ -135,10 +135,17 @@ function localTime(now, prefs) {
 
 async function dueNotifications(env, key, local, prefs) {
   const notifications = [];
+  const state = prefs.state || {};
+  const stateIsToday = state.date === local.dateStr;
+  const stateIsThisWeek = state.weekStart && state.weekEnd &&
+    local.dateStr >= state.weekStart && local.dateStr <= state.weekEnd;
 
   if (prefs.streakProtection && local.hour === 19) {
+    const coreDone = stateIsToday && Number.isFinite(state.coreDone) ? state.coreDone : 0;
+    const coreTarget = stateIsToday && Number.isFinite(state.coreTarget) ? state.coreTarget : 5;
+    const streakCurrent = Number.isFinite(state.streakCurrent) ? state.streakCurrent : 0;
     const firedKey = `fired_${key}_${local.dateStr}_streak`;
-    if (!(await env.SUBS.get(firedKey))) {
+    if (streakCurrent > 0 && coreTarget > 0 && coreDone < coreTarget && !(await env.SUBS.get(firedKey))) {
       notifications.push({
         title: 'Bloom',
         body: "Your streak may need a little attention tonight.",
@@ -151,7 +158,7 @@ async function dueNotifications(env, key, local, prefs) {
 
   if (prefs.weighIn && local.day === 0 && local.hour === 9) {
     const firedKey = `fired_${key}_${local.dateStr}_weighin`;
-    if (!(await env.SUBS.get(firedKey))) {
+    if (!(stateIsThisWeek && state.weighInThisWeek) && !(await env.SUBS.get(firedKey))) {
       notifications.push({
         title: 'Bloom',
         body: "Weekly weigh-in -- log it while you're thinking about it.",
@@ -164,7 +171,7 @@ async function dueNotifications(env, key, local, prefs) {
 
   if (prefs.bedtime && local.hour === 22) {
     const firedKey = `fired_${key}_${local.dateStr}_bedtime`;
-    if (!(await env.SUBS.get(firedKey))) {
+    if (!(stateIsToday && state.sleepBedChecked) && !(await env.SUBS.get(firedKey))) {
       notifications.push({
         title: 'Bloom',
         body: 'Bedtime habit -- 30 minutes to your target.',

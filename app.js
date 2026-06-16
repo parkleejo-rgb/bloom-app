@@ -35,20 +35,20 @@ const MAINTENANCE_MESSAGES = [
 
 const DEFAULT_HABITS = [
   // Sleep  (sleep_outside removed — morning walk now covers circadian benefit in Movement)
-  { id: 'sleep_bed',      label: 'In bed by 10:30pm',                          pillar: 'sleep',     weight: 3, points: 2, retroactive: true,  opensWorkout: false, priority: false },
-  { id: 'sleep_wake',     label: 'Woke up within 30 min of usual wake time',   pillar: 'sleep',     weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'sleep_bed',      label: 'In bed by 10:30pm',                          pillar: 'sleep',     weight: 1, points: 1, retroactive: true,  opensWorkout: false, priority: false },
+  { id: 'sleep_wake',     label: 'Woke up within 30 min of usual wake time',   pillar: 'sleep',     weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, enabled: false },
   { id: 'sleep_caffeine', label: 'No caffeine after 1pm',                      pillar: 'sleep',     weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   // Nutrition — ordered by points desc
-  { id: 'nutr_breakfast', label: 'High protein breakfast (30g goal)',          pillar: 'nutrition', weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_fiber',     label: 'Approx 25 to 30g fiber throughout day',         pillar: 'nutrition', weight: 2, points: 2, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_no_eat',    label: 'Evening eating cutoff',                      pillar: 'nutrition', weight: 3, points: 2, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_no_junk',   label: 'No processed meat today',                    pillar: 'nutrition', weight: 3, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_alcohol',   label: 'Alcohol-free today',                         pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_breakfast', label: 'High protein breakfast (30g goal)',          pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_fiber',     label: 'Approx 25 to 30g fiber throughout day',      pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_no_eat',    label: 'Evening eating cutoff',                      pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_no_junk',   label: 'No processed meat today',                    pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, enabled: false },
+  { id: 'nutr_alcohol',   label: 'Alcohol-free today',                         pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, enabled: false },
   { id: 'nutr_lunch',     label: 'Protein and plants at lunch',                pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'nutr_dinner',    label: 'Protein and plants at dinner',               pillar: 'nutrition', weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_water',     label: 'Drank water first thing this morning',       pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_omega3',    label: 'Took omega-3 supplement',                    pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'nutr_vitamins',  label: 'Took prenatal vitamins, mag, vit D',         pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'nutr_water',     label: 'Drank water first thing this morning',       pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, enabled: false },
+  { id: 'nutr_omega3',    label: 'Took omega-3 supplement',                    pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, enabled: false },
+  { id: 'nutr_vitamins',  label: 'Took prenatal vitamins, mag, vit D',         pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, enabled: false },
   // Movement
   { id: 'move_strength',  label: 'Completed a strength training session',      pillar: 'movement',  weight: 4, points: 2, retroactive: false, opensWorkout: true,  priority: true  },
   { id: 'move_other',     label: 'Completed another workout',                  pillar: 'movement',  weight: 2, points: 1, retroactive: false, opensWorkout: true,  priority: false },
@@ -57,7 +57,7 @@ const DEFAULT_HABITS = [
   // Stress & Recovery
   { id: 'stress_outside', label: 'Got outside today (non-workout time)',       pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
   { id: 'stress_me',      label: 'Did one thing just for me',                  pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
-  { id: 'stress_task',    label: 'Made progress on one non-baby task',         pillar: 'stress',    weight: 2, points: 1, retroactive: false, opensWorkout: false, priority: false },
+  { id: 'stress_task',    label: 'Made progress on one non-baby task',         pillar: 'stress',    weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, enabled: false },
   // Optional habits — off by default
   { id: 'nutr_enough',    label: 'Ate enough to support energy and recovery',  pillar: 'nutrition', weight: 1, points: 1, retroactive: false, opensWorkout: false, priority: false, enabled: false },
 ];
@@ -104,8 +104,8 @@ const DEFAULT_ACTIVITIES = [
   { id: 'other',       label: 'Other',              priority: false },
 ];
 
-/* The 6 habits with strongest direct evidence for weight loss */
-const CORE_HABIT_IDS = ['sleep_bed', 'nutr_breakfast', 'nutr_no_eat', 'nutr_lunch', 'nutr_dinner', 'move_strength'];
+/* Default daily commitments */
+const DEFAULT_CORE_HABIT_IDS = ['sleep_bed', 'nutr_breakfast', 'nutr_no_eat', 'nutr_lunch', 'nutr_dinner', 'move_strength'];
 
 const CORE_HABIT_PUSHBACK = {
   nutr_breakfast: "This is one of the highest-leverage habits for appetite control. Are you sure?",
@@ -200,13 +200,13 @@ const Store = {
   remove(key) { localStorage.removeItem('bloom_' + key); },
 
   getSettings()   { return { ...DEFAULT_SETTINGS, ...this.get('settings', {}) }; },
-  saveSettings(s) { this.set('settings', s); SheetsSync.schedule(); },
+  saveSettings(s) { this.set('settings', s); SheetsSync.schedule(); if (typeof Push !== 'undefined') Push.updatePrefs(); },
 
   getHabits(date)      { return this.get('habits_' + date, {}); },
-  saveHabits(date, h)  { this.set('habits_' + date, h); SheetsSync.schedule(); },
+  saveHabits(date, h)  { this.set('habits_' + date, h); SheetsSync.schedule(); if (date === todayStr() && typeof Push !== 'undefined') Push.updatePrefs(); },
 
   getWeighIns()        { return this.get('weighins', []); },
-  saveWeighIns(a)      { this.set('weighins', a); SheetsSync.schedule(); },
+  saveWeighIns(a)      { this.set('weighins', a); SheetsSync.schedule(); if (typeof Push !== 'undefined') Push.updatePrefs(); },
 
   getWorkouts()        { return this.get('workouts', []); },
   saveWorkouts(a)      { this.set('workouts', a); SheetsSync.schedule(); },
@@ -238,19 +238,38 @@ const Store = {
   getWeeklyIntentions(){ return this.get('weekly_intentions', {}); },
   saveWeeklyIntentions(i){ this.set('weekly_intentions', i); },
 
+  getCoreHabitIds() {
+    const stored = this.get('core_habit_ids', null);
+    const ids = Array.isArray(stored) ? stored : DEFAULT_CORE_HABIT_IDS;
+    const activeIds = new Set(this.getHabitDefs().map(h => h.id));
+    return ids.filter(id => activeIds.has(id));
+  },
+  saveCoreHabitIds(ids) {
+    const unique = [...new Set((ids || []).filter(Boolean))];
+    this.set('core_habit_ids', unique);
+  },
+
   getHabitDefs() {
     const stored = this.get('habit_defs', null);
     if (!stored) return DEFAULT_HABITS.map(h => ({...h}));
+    const simplificationDone = !!this.get('habit_simplification_v2_done', false);
 
     const LABEL_MIGRATIONS = [
-      { id: 'nutr_breakfast', newPoints: 2 },
-      { id: 'nutr_fiber',     oldLabels: ['Had a high-fiber food today', 'Approx 30g of fiber throughout day'],    newLabel: 'Approx 25 to 30g fiber throughout day', newPoints: 2 },
-      { id: 'nutr_no_eat',    oldLabels: ['No eating after', 'Evening eating cutoff ('],                          newLabel: 'Evening eating cutoff', newPoints: 2 },
-      { id: 'nutr_no_junk',   oldLabels: ['Avoided ultra-processed snacks','No processed meats or packaged snack foods','No processed meat or packaged snack foods today'], newLabel: 'No processed meat today' },
+      { id: 'sleep_bed',      newPoints: 1 },
+      { id: 'sleep_wake',     newPoints: 1, newEnabled: false },
+      { id: 'nutr_breakfast', newPoints: 1 },
+      { id: 'nutr_fiber',     oldLabels: ['Had a high-fiber food today', 'Approx 30g of fiber throughout day'],    newLabel: 'Approx 25 to 30g fiber throughout day', newPoints: 1 },
+      { id: 'nutr_no_eat',    oldLabels: ['No eating after', 'Evening eating cutoff ('],                          newLabel: 'Evening eating cutoff', newPoints: 1 },
+      { id: 'nutr_no_junk',   oldLabels: ['Avoided ultra-processed snacks','No processed meats or packaged snack foods','No processed meat or packaged snack foods today'], newLabel: 'No processed meat today', newEnabled: false },
+      { id: 'nutr_alcohol',   newEnabled: false },
       { id: 'nutr_lunch',     oldLabels: ['Protein and veg forward at lunch', 'Protein and vegetables at lunch'],  newLabel: 'Protein and plants at lunch' },
       { id: 'nutr_dinner',    oldLabels: ['Protein and veg forward at dinner', 'Protein and vegetables at dinner'], newLabel: 'Protein and plants at dinner' },
+      { id: 'nutr_water',     newEnabled: false },
+      { id: 'nutr_omega3',    newEnabled: false },
+      { id: 'nutr_vitamins',  newEnabled: false },
       // move_walk: alsoContributes changed from stress → sleep
       { id: 'move_walk',      newAlso: 'sleep', newAlsoWeight: 1 },
+      { id: 'stress_task',    newEnabled: false },
     ];
 
     // Remove retired habits (sleep_outside merged into move_walk)
@@ -278,6 +297,7 @@ const Store = {
         if (m) {
           if (m.newLabel && (!m.oldLabels || m.oldLabels.includes(h.label))) u = { ...u, label: m.newLabel };
           if (m.newPoints !== undefined) u = { ...u, points: m.newPoints, weight: m.newPoints };
+          if (!simplificationDone && m.newEnabled !== undefined) u = { ...u, enabled: m.newEnabled };
           if (m.newAlso)  { u.alsoContributes = m.newAlso; u.alsoWeight = m.newAlsoWeight; }
         }
         return u;
@@ -298,6 +318,11 @@ const Store = {
       if (bi === -1) return -1;
       return ai - bi;
     });
+
+    if (!simplificationDone) {
+      this.set('habit_simplification_v2_done', true);
+      this.set('habit_defs', migrated);
+    }
 
     return migrated;
   },
@@ -342,6 +367,16 @@ function daysElapsedThisWeek() {
   const ws = getWeekStart();
   const diff = Math.round((today - ws) / 86400000) + 1;
   return Math.max(1, Math.min(diff, 7));
+}
+
+function isCoreHabit(habitOrId) {
+  const id = typeof habitOrId === 'string' ? habitOrId : habitOrId?.id;
+  return Store.getCoreHabitIds().includes(id);
+}
+
+function coreHabitTarget(total) {
+  if (!total) return 0;
+  return Math.min(5, total);
 }
 
 function formatDate(d) {
@@ -521,13 +556,15 @@ const Streak = {
   },
   saveData(d) { Store.set('streak', d); },
 
-  // True if ≥5 of the (enabled) core habits are checked for that date
+  // True if the configured daily commitment target is met for that date
   isStreakDay(date) {
     const checked    = Store.getHabits(date);
     const defs       = Store.getHabitDefs();
-    const coreActive = defs.filter(h => CORE_HABIT_IDS.includes(h.id) && h.enabled !== false);
+    const coreIds    = Store.getCoreHabitIds();
+    const coreActive = defs.filter(h => coreIds.includes(h.id) && h.enabled !== false);
     const done       = coreActive.filter(h => checked[h.id]).length;
-    return done >= 5;
+    const target     = coreHabitTarget(coreActive.length);
+    return target > 0 && done >= target;
   },
 
   // Recompute streak from scratch (supports retroactive logging)
@@ -600,9 +637,10 @@ const Streak = {
   getCoreProgress(date) {
     const checked    = Store.getHabits(date || todayStr());
     const defs       = Store.getHabitDefs();
-    const coreActive = defs.filter(h => CORE_HABIT_IDS.includes(h.id) && h.enabled !== false);
+    const coreIds    = Store.getCoreHabitIds();
+    const coreActive = defs.filter(h => coreIds.includes(h.id) && h.enabled !== false);
     const done       = coreActive.filter(h => checked[h.id]).length;
-    return { done, total: coreActive.length };
+    return { done, total: coreActive.length, target: coreHabitTarget(coreActive.length) };
   },
 
   // Check and award streak badges; returns newly earned badge ids
@@ -1185,7 +1223,7 @@ function openRetroChecklist(retroDate) {
     const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     const dateLabel = `${dayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}`;
 
-    const CORE_IDS = CORE_HABIT_IDS;
+    const CORE_IDS = Store.getCoreHabitIds();
 
     let listHtml = '';
     // Core habits
@@ -1197,7 +1235,7 @@ function openRetroChecklist(retroDate) {
       coreHabits.forEach(h => {
         listHtml += `
           <label class="retro-habit-row ${checked[h.id] ? 'checked' : ''}">
-            <input type="checkbox" data-habit="${h.id}" data-pts="${h.points}" ${checked[h.id] ? 'checked' : ''}>
+            <input type="checkbox" data-habit="${h.id}" data-pts="${h.points}" data-core="true" ${checked[h.id] ? 'checked' : ''}>
             <span class="retro-habit-label">${escHtml(h.label)}</span>
             <span class="retro-habit-pts">${h.points}pt${h.points > 1 ? 's' : ''}</span>
           </label>`;
@@ -1213,9 +1251,9 @@ function openRetroChecklist(retroDate) {
       ph.forEach(h => {
         listHtml += `
           <label class="retro-habit-row ${checked[h.id] ? 'checked' : ''}">
-            <input type="checkbox" data-habit="${h.id}" data-pts="${h.points}" ${checked[h.id] ? 'checked' : ''}>
+            <input type="checkbox" data-habit="${h.id}" data-pts="${h.points}" data-core="false" ${checked[h.id] ? 'checked' : ''}>
             <span class="retro-habit-label">${escHtml(h.label)}</span>
-            <span class="retro-habit-pts">${h.points}pt${h.points > 1 ? 's' : ''}</span>
+            <span class="retro-habit-pts">bonus</span>
           </label>`;
       });
     });
@@ -1242,17 +1280,21 @@ function openRetroChecklist(retroDate) {
       body.querySelectorAll('.retro-habit-row input[type=checkbox]').forEach(cb => {
         const hid = cb.dataset.habit;
         const pts = parseInt(cb.dataset.pts) || 1;
+        const earnsPoints = cb.dataset.core === 'true';
         if (cb.checked && !prevChecked[hid]) {
-          // Newly checked — award points
           newChecked[hid] = true;
-          Points.add(pts, `Retro: ${hid} (${retroDate})`);
-          ptsEarned += pts;
+          if (earnsPoints) {
+            Points.add(pts, `Retro: ${hid} (${retroDate})`);
+            ptsEarned += pts;
+          }
         } else if (!cb.checked && prevChecked[hid]) {
-          // Unchecked retroactively — deduct
           delete newChecked[hid];
-          Points.deduct(pts, `Retro uncheck: ${hid} (${retroDate})`);
+          if (earnsPoints) Points.deduct(pts, `Retro uncheck: ${hid} (${retroDate})`);
         }
       });
+
+      const bonusDelta = syncDailyBonusPoints(retroDate, newChecked);
+      if (bonusDelta > 0) ptsEarned += bonusDelta;
 
       Store.saveHabits(retroDate, newChecked);
       Streak.recompute();
@@ -1413,6 +1455,15 @@ const Notifications = {
         : 'Permission not granted.', '');
       return false;
     }
+    if (Push.isConfigured() && Push.isSupported()) {
+      const ok = await Push.sendTest();
+      if (ok) {
+        showToast('Push notification sent. This is the same path scheduled reminders use.', 'success');
+        this.schedule();
+        return true;
+      }
+      showToast('Push test failed; trying a local notification instead.', '');
+    }
     // Fire via service worker (required on mobile)
     try {
       const reg = await navigator.serviceWorker.ready.catch(() => null);
@@ -1492,8 +1543,8 @@ const Notifications = {
     if (s.notifStreakProtection && !fired.streakProtection && hour >= 19) {
       const streak = Streak.recompute();
       if (streak.current > 0) {
-        const { done: coreDone } = Streak.getCoreProgress(today);
-        if (coreDone < 5) {
+        const { done: coreDone, target: coreTarget } = Streak.getCoreProgress(today);
+        if (coreTarget > 0 && coreDone < coreTarget) {
           if (await this.show('Bloom', `Your ${streak.current}-day streak is on the line. You've got time.`)) {
             fired.streakProtection = true;
           }
@@ -1571,6 +1622,15 @@ const Push = {
   },
 
   _prefsFromSettings(settings) {
+    const today = todayStr();
+    const checked = Store.getHabits(today);
+    const core = Streak.getCoreProgress(today);
+    const streak = Streak.recompute();
+    const weekStart = dateStr(getWeekStart());
+    const weekEnd = new Date(parseDate(weekStart));
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    const weekEndStr = dateStr(weekEnd);
+
     return {
       streakProtection: !!settings.notifStreakProtection,
       weighIn: !!settings.notifWeighIn,
@@ -1578,6 +1638,16 @@ const Push = {
       morningCheckin: !!settings.notifMorningCheckin,
       morningTime: settings.notifMorningTime || '08:00',
       tzOffset: -new Date().getTimezoneOffset(),
+      state: {
+        date: today,
+        sleepBedChecked: !!checked.sleep_bed,
+        coreDone: core.done,
+        coreTarget: core.target,
+        streakCurrent: streak.current || 0,
+        weekStart,
+        weekEnd: weekEndStr,
+        weighInThisWeek: Store.getWeighIns().some(w => w.date >= weekStart && w.date <= weekEndStr),
+      },
     };
   },
 
@@ -2289,6 +2359,35 @@ function sortHabitsByPoints(habits) {
     .map(item => item.habit);
 }
 
+const BONUS_COMPLETION_REASON = 'All bonus habits complete';
+
+function pointNetFor(date, reason) {
+  return Store.getPoints().history
+    .filter(h => h.date === date && h.reason === reason)
+    .reduce((sum, h) => sum + (h.amount || 0), 0);
+}
+
+function syncDailyBonusPoints(date, checked = Store.getHabits(date)) {
+  const bonusHabits = Store.getHabitDefs()
+    .filter(h => h.enabled !== false && !isCoreHabit(h));
+  if (!bonusHabits.length) return 0;
+
+  const allBonusDone = bonusHabits.every(h => checked[h.id]);
+  const currentNet = pointNetFor(date, BONUS_COMPLETION_REASON);
+
+  if (allBonusDone && currentNet <= 0) {
+    Points.add(1, BONUS_COMPLETION_REASON, date);
+    return 1;
+  }
+
+  if (!allBonusDone && currentNet > 0) {
+    Points.deduct(currentNet, BONUS_COMPLETION_REASON, date);
+    return -currentNet;
+  }
+
+  return 0;
+}
+
 function renderDateStrip() {
   const today = todayStr();
   const viewing = viewingDate;
@@ -2386,6 +2485,9 @@ function buildHabitItemHtml(habit, checked, isCore, bundleEntry, isPromptActive,
   const bundleSkipped = bundleEntry?.skipped || false;
   const extra         = habit.retroactive ? '<span class="text-small text-muted"> (for last night)</span>' : '';
   const workoutTag    = habit.opensWorkout && !habit.priority ? '<span class="habit-badge">Logs workout</span>' : '';
+  const pointsLabel   = isCore
+    ? `${habit.points}pt${habit.points > 1 ? 's' : ''}`
+    : 'bonus';
   const coreDot       = isCore
     ? '<span class="core-dot core-dot-filled" aria-hidden="true">●</span>'
     : '<span class="core-dot core-dot-empty"  aria-hidden="true">○</span>';
@@ -2435,7 +2537,7 @@ function buildHabitItemHtml(habit, checked, isCore, bundleEntry, isPromptActive,
         <button class="habit-tap-zone" type="button" ${hasDetailFinal ? `aria-expanded="false" aria-controls="${detailId}"` : ''}>
           <div class="habit-text">${escHtml(habit.label)}${extra}</div>
           ${workoutTag}
-          <div class="habit-points">${habit.points}pt${habit.points > 1 ? 's' : ''}</div>
+          <div class="habit-points">${pointsLabel}</div>
           ${hasDetailFinal ? `<svg class="habit-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>` : ''}
         </button>
       </div>
@@ -2462,11 +2564,11 @@ function renderToday() {
 
   // Streak + core progress
   const streakData        = Streak.recompute();
-  const { done: coreDone } = Streak.getCoreProgress(today);
+  const { done: coreDone, target: coreTarget } = Streak.getCoreProgress(today);
   const totalDone  = habits.filter(h => checked[h.id]).length;
   const totalAll   = habits.length;
   const nowHour    = new Date().getHours();
-  const onTheLine  = nowHour >= 18 && coreDone < 5 && streakData.current > 0;
+  const onTheLine  = nowHour >= 18 && coreTarget > 0 && coreDone < coreTarget && streakData.current > 0;
 
   const pillars = ['sleep', 'nutrition', 'movement', 'stress'];
 
@@ -2521,8 +2623,12 @@ function renderToday() {
     html += `<div id="today-optional-cards"></div>`;
   }
 
+  const coreIds = Store.getCoreHabitIds();
+
   // Top section: all core habits
-  const coreHabits = sortHabitsByPoints(habits.filter(h => CORE_HABIT_IDS.includes(h.id)));
+  const coreHabits = coreIds
+    .map(id => habits.find(h => h.id === id))
+    .filter(Boolean);
   if (coreHabits.length) {
     html += `
       <div class="habit-group">
@@ -2536,21 +2642,20 @@ function renderToday() {
     html += `</div>`;
   }
 
-  // Domain sections: bonus habits only, completion counts include cores
+  // Domain sections: bonus habits only
   pillars.forEach(pillar => {
     const meta       = PILLAR_META[pillar];
-    const allItems   = habits.filter(h => h.pillar === pillar);
-    const bonusItems = sortHabitsByPoints(allItems.filter(h => !CORE_HABIT_IDS.includes(h.id)));
+    const bonusItems = sortHabitsByPoints(habits.filter(h => h.pillar === pillar && !coreIds.includes(h.id)));
     if (!bonusItems.length) return;
 
-    const pillarDone = allItems.filter(h => checked[h.id]).length;
+    const pillarDone = bonusItems.filter(h => checked[h.id]).length;
 
     html += `
       <div class="habit-group">
         <div class="pillar-header">
           <div class="pillar-dot ${meta.dotClass}"></div>
           <div class="pillar-label">${meta.label}</div>
-          <div id="pillar-count-${pillar}" class="pillar-count">${pillarDone} of ${allItems.length} done</div>
+          <div id="pillar-count-${pillar}" class="pillar-count">${pillarDone} of ${bonusItems.length} done</div>
         </div>
     `;
 
@@ -2633,7 +2738,7 @@ function updateStreakDisplay() {
   const habits  = Store.getHabitDefs().filter(h => h.enabled !== false);
 
   const streakData        = Streak.recompute();
-  const { done: coreDone } = Streak.getCoreProgress(today);
+  const { done: coreDone, target: coreTarget } = Streak.getCoreProgress(today);
   const totalDone = habits.filter(h => checked[h.id]).length;
   const totalAll  = habits.length;
   const nowHour   = new Date().getHours();
@@ -2653,14 +2758,14 @@ function updateStreakDisplay() {
 
   const bannerEl = document.getElementById('streak-on-line-banner');
   if (bannerEl) {
-    const show = nowHour >= 18 && coreDone < 5 && streakData.current > 0;
+    const show = nowHour >= 18 && coreTarget > 0 && coreDone < coreTarget && streakData.current > 0;
     bannerEl.style.display = show ? '' : 'none';
     if (show) bannerEl.textContent = `Your ${streakData.current}-day streak is on the line today.`;
   }
 
   // Update per-pillar counts
   ['sleep', 'nutrition', 'movement', 'stress'].forEach(pillar => {
-    const items = habits.filter(h => h.pillar === pillar);
+    const items = habits.filter(h => h.pillar === pillar && !isCoreHabit(h));
     const done  = items.filter(h => checked[h.id]).length;
     const el = document.getElementById(`pillar-count-${pillar}`);
     if (el) el.textContent = `${done} of ${items.length} done`;
@@ -2677,6 +2782,7 @@ function toggleHabit(item) {
   if (!habit) return;
 
   const wasChecked = !!checked[id];
+  const earnsPoints = isCoreHabit(habit);
 
   if (!wasChecked) {
     // Check it
@@ -2686,9 +2792,17 @@ function toggleHabit(item) {
     const checkBtn = item.querySelector('.habit-check-zone');
     checkBtn?.setAttribute('aria-checked', 'true');
     checkBtn?.setAttribute('aria-label', `Mark incomplete: ${habit.label}${habit.retroactive ? ' (for last night)' : ''}`);
-    Points.add(habit.points, `Habit: ${habit.label}`, today);
+    let pointsDelta = 0;
+    if (earnsPoints) {
+      Points.add(habit.points, `Habit: ${habit.label}`, today);
+      pointsDelta += habit.points;
+    }
+    pointsDelta += syncDailyBonusPoints(today, checked);
     updatePointsBadge();
-    showToast(`+${habit.points} pt${habit.points > 1 ? 's' : ''}`, 'success');
+    showToast(pointsDelta > 0
+      ? `+${pointsDelta} pt${pointsDelta > 1 ? 's' : ''}`
+      : 'Bonus habit checked',
+      pointsDelta > 0 ? 'success' : '');
 
     const newBadges = Badges.check(['habits']);
     if (newBadges.length) setTimeout(() => Badges.showCelebration(newBadges), 400);
@@ -2719,7 +2833,8 @@ function toggleHabit(item) {
     const checkBtn = item.querySelector('.habit-check-zone');
     checkBtn?.setAttribute('aria-checked', 'false');
     checkBtn?.setAttribute('aria-label', `Mark complete: ${habit.label}${habit.retroactive ? ' (for last night)' : ''}`);
-    Points.deduct(habit.points, `Habit unchecked: ${habit.label}`, today);
+    if (earnsPoints) Points.deduct(habit.points, `Habit unchecked: ${habit.label}`, today);
+    syncDailyBonusPoints(today, checked);
     updatePointsBadge();
     if (isViewingToday) updateStreakDisplay();
     else renderToday();
@@ -3754,10 +3869,28 @@ function renderSheetsSyncSection() {
       </div>`;
   }
 
+  if (needsReauth) {
+    return `
+    <div class="settings-group">
+      <div style="padding:13px 16px">
+        <p style="color:#b45309;font-size:13px;margin-bottom:10px;font-style:italic">Google Sheets sync needs you to reconnect before Bloom can back up new changes.</p>
+        ${driveWarning ? `<p class="settings-warning">${escHtml(driveWarning)}</p>` : ''}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:14px;font-weight:500;color:#b45309">Reconnect required</span>
+          ${account ? `<span style="font-size:12px;color:var(--text-muted)">${escHtml(account)}</span>` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Last synced: ${lastSynced}${pending ? ' · Sync pending' : ''}</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" id="s-sheets-connect" style="flex:1">Reconnect</button>
+          <button class="btn btn-outline btn-sm" id="s-sheets-disconnect" style="flex:1;color:var(--text-muted)">Disconnect</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
   return `
     <div class="settings-group">
       <div style="padding:13px 16px">
-        ${needsReauth ? `<p style="color:#b45309;font-size:13px;margin-bottom:10px;font-style:italic">Google Sheets sync hasn't connected in 7 days. Tap Reconnect below.</p>` : ''}
         ${driveWarning ? `<p class="settings-warning">${escHtml(driveWarning)}</p>` : ''}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
           <span style="font-size:14px;font-weight:500;color:var(--text)">Connected ✓</span>
@@ -3765,9 +3898,7 @@ function renderSheetsSyncSection() {
         </div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Last synced: ${lastSynced}${pending ? ' · Sync pending' : ''}</div>
         <div style="display:flex;gap:8px">
-          ${needsReauth
-            ? `<button class="btn btn-outline btn-sm" id="s-sheets-connect" style="flex:1">Reconnect</button>`
-            : `<button class="btn btn-outline btn-sm" id="s-sheets-sync" style="flex:1">Sync now</button>`}
+          <button class="btn btn-outline btn-sm" id="s-sheets-sync" style="flex:1">Sync now</button>
           <button class="btn btn-outline btn-sm" id="s-sheets-disconnect" style="flex:1;color:var(--text-muted)">Disconnect</button>
         </div>
       </div>
@@ -4499,14 +4630,22 @@ function openWeighInModal() {
       // Replace if same date
       const idx = weighIns.findIndex(w => w.date === date);
       const isNewWeighIn = idx < 0;
+      const weekStart = dateStr(getWeekStart(parseDate(date)));
+      const weekEnd = new Date(parseDate(weekStart));
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      const weekEndStr = dateStr(weekEnd);
+      const alreadyRewardedThisWeek = weighIns.some(w =>
+        w.date !== date && w.date >= weekStart && w.date <= weekEndStr
+      );
       if (idx >= 0) weighIns[idx] = { date, weight };
       else weighIns.push({ date, weight });
       weighIns.sort((a,b) => a.date.localeCompare(b.date));
       Store.saveWeighIns(weighIns);
 
-      if (isNewWeighIn) Points.add(3, 'Weekly weigh-in');
+      const earnsWeeklyPoint = isNewWeighIn && !alreadyRewardedThisWeek;
+      if (earnsWeeklyPoint) Points.add(1, 'Weekly weigh-in');
       closeModal();
-      showToast(isNewWeighIn ? 'Weight logged! +3 pts' : 'Weight updated', 'success');
+      showToast(earnsWeeklyPoint ? 'Weight logged! +1 pt' : (isNewWeighIn ? 'Weight logged' : 'Weight updated'), 'success');
 
       const newBadges = Badges.check(['weight']);
       if (newBadges.length) setTimeout(() => Badges.showCelebration(newBadges), 300);
@@ -4786,8 +4925,12 @@ function openHabitsCustomizer() {
 function renderHabitsCustomizerBody(body) {
   const habits  = Store.getHabitDefs();
   const pillars = ['sleep', 'nutrition', 'movement', 'stress'];
+  const coreIds = Store.getCoreHabitIds();
 
-  let html = `<div class="modal-title">Customize Habits</div>`;
+  let html = `
+    <div class="modal-title">Customize Habits</div>
+    <p class="settings-note" style="margin:4px 0 12px">Core habits appear under Daily Commitments and earn points individually. Bonus habits support your domain bars and earn one point only when all enabled bonus habits are complete.</p>
+  `;
   pillars.forEach(p => {
     const meta  = PILLAR_META[p];
     const items = habits.filter(h => h.pillar === p);
@@ -4799,6 +4942,7 @@ function renderHabitsCustomizerBody(body) {
     `;
     items.forEach(h => {
       const isCustom = !!h.custom;
+      const isCore = coreIds.includes(h.id);
       html += `
         <div class="habit-settings-item">
           <label class="toggle" style="flex-shrink:0">
@@ -4815,6 +4959,10 @@ function renderHabitsCustomizerBody(body) {
           ${h.alsoContributes
             ? `<span class="hc-also-tag" title="Also scores toward ${PILLAR_META[h.alsoContributes]?.label}">+${PILLAR_META[h.alsoContributes]?.label.split(' ')[0]}</span>`
             : ''}
+          <label class="hc-core-toggle" title="Show in Daily Commitments">
+            <input type="checkbox" class="core-toggle" data-id="${h.id}" ${isCore ? 'checked' : ''}>
+            <span>Core</span>
+          </label>
           <select class="hc-pts-select" data-id="${h.id}" aria-label="Points">
             ${[1,2,3].map(n => `<option value="${n}" ${(h.points||1) === n ? 'selected' : ''}>${n}pt</option>`).join('')}
           </select>
@@ -4844,7 +4992,7 @@ function renderHabitsCustomizerBody(body) {
       const h       = habits.find(x => x.id === toggle.dataset.id);
       if (!h) return;
 
-      const isCore      = CORE_HABIT_IDS.includes(h.id);
+      const isCore      = isCoreHabit(h.id);
       const isDisabling = !toggle.checked;
 
       if (isCore && isDisabling) {
@@ -4872,6 +5020,19 @@ function renderHabitsCustomizerBody(body) {
         if (h) { h.enabled = toggle.checked; Store.saveHabitDefs(habits); }
         if (currentScreen === 'today') renderToday();
       }
+    });
+  });
+
+  body.querySelectorAll('.core-toggle').forEach(toggle => {
+    toggle.addEventListener('change', () => {
+      const id = toggle.dataset.id;
+      const ids = Store.getCoreHabitIds();
+      const next = toggle.checked
+        ? [...ids, id]
+        : ids.filter(coreId => coreId !== id);
+      Store.saveCoreHabitIds(next);
+      if (currentScreen === 'today') renderToday();
+      openModal(renderHabitsCustomizerBody);
     });
   });
 
@@ -4918,6 +5079,7 @@ function renderHabitsCustomizerBody(body) {
       openConfirm('Delete habit?', 'This habit will be removed from your checklist.', 'Delete', () => {
         const habits = Store.getHabitDefs().filter(h => h.id !== id);
         Store.saveHabitDefs(habits);
+        Store.saveCoreHabitIds(Store.getCoreHabitIds().filter(coreId => coreId !== id));
         if (currentScreen === 'today') renderToday();
         openModal(renderHabitsCustomizerBody);
       }, true);
@@ -5240,12 +5402,12 @@ function openHowBloomWorks() {
 
       <div class="how-section">
         <div class="how-heading">The daily check-in</div>
-        <p>Open the Today screen and tap habits as you complete them throughout the day. Each check-off earns points immediately and habits reset at midnight. If you forget to log a day, use the "Log a past day" button at the bottom of the Today screen -- you can go back up to 7 days and check off anything you actually did. The goal is to make this a 60-second interaction, not a planning session.</p>
+        <p>Open the Today screen and tap habits as you complete them throughout the day. Daily commitments earn points immediately; bonus habits support your domain bars and earn one small bonus if you complete all enabled bonus items. Habits reset at midnight. If you forget to log a day, use the "Log a past day" button at the bottom of the Today screen -- you can go back up to 7 days and check off anything you actually did. The goal is to make this a 60-second interaction, not a planning session.</p>
       </div>
 
       <div class="how-section">
         <div class="how-heading">Your core habits and bonus habits</div>
-        <p>Six habits are marked as core commitments: bedtime, protein breakfast, evening eating cutoff, protein and plants at lunch and dinner, and strength training. Completing at least five of those six is what counts as a streak day. Everything else on your list is a bonus habit. Bonus habits still earn points and contribute to your domain bars -- they just don't affect the streak.</p>
+        <p>Daily Commitments are the habits you have marked as core. By default these are bedtime, protein breakfast, evening eating cutoff, protein and plants at lunch and dinner, and strength training, but you can change that list in Customize Habits. Core habits earn points individually. Everything else is a bonus habit: bonus habits contribute to your domain bars, and finishing all enabled bonus habits earns one bonus point.</p>
       </div>
 
       <div class="how-section">
@@ -5255,7 +5417,7 @@ function openHowBloomWorks() {
 
       <div class="how-section">
         <div class="how-heading">The streak system</div>
-        <p>Your streak counts consecutive days where you completed at least five of your six core habits. One grace day per calendar week is built in -- if you miss a day, the streak survives as long as it's the only miss that week. The streak counter appears on the Today screen once you have a streak of 1 or more days. Milestones at 7, 21, 66, 90, 180, and 365 days are tracked in the Progress screen and earn badges permanently -- breaking a streak never removes a badge you've already earned.</p>
+        <p>Your streak counts consecutive days where you completed your Daily Commitment target: five core habits when you have five or more active, or all of them if you keep the list smaller. One grace day per calendar week is built in -- if you miss a day, the streak survives as long as it's the only miss that week. The streak counter appears on the Today screen once you have a streak of 1 or more days. Milestones at 7, 21, 66, 90, 180, and 365 days are tracked in the Progress screen and earn badges permanently -- breaking a streak never removes a badge you've already earned.</p>
       </div>
 
       <div class="how-section">
@@ -5343,7 +5505,7 @@ const OB_SCREENS = [
     const g = Store.getGoals();
     return `<div class="ob-screen">
       <h1 class="ob-headline">What are you working toward?</h1>
-      <p class="ob-body">Every habit you check off earns points toward a personal reward. Set a goal now or come back to it later.</p>
+      <p class="ob-body">Daily commitments earn points toward a personal reward. Bonus habits build momentum without turning every small action into a payout.</p>
       <div class="ob-chips">
         <button class="ob-chip" data-label="Something to wear">👗 Something to wear</button>
         <button class="ob-chip" data-label="An experience">✨ An experience</button>
@@ -5695,6 +5857,8 @@ const SheetsSync = {
       if (e.message === 'Token expired' || (e.status && e.status === 401)) {
         localStorage.setItem('bloom_google_reauth_needed', '1');
       }
+      const el = document.querySelector('#screen-settings');
+      if (el && el.classList.contains('active')) renderSettings();
     }
   },
 
@@ -6239,6 +6403,9 @@ async function init() {
   setTimeout(async () => {
     await Notifications.checkPending();
     Notifications.schedule();
+    await Push.sync(Store.getSettings(), {
+      subscribeWhenEnabled: 'Notification' in window && Notification.permission === 'granted',
+    });
   }, 2000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {

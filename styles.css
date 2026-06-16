@@ -1579,6 +1579,31 @@ textarea.form-input {
   flex-shrink: 0;
   white-space: nowrap;
 }
+.hc-core-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 5px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.hc-core-toggle input {
+  width: 11px;
+  height: 11px;
+  accent-color: var(--sage);
+  margin: 0;
+}
+.hc-core-toggle:has(input:checked) {
+  color: var(--sage-dark);
+  background: var(--sage-light);
+  border-color: rgba(143, 175, 138, 0.45);
+}
 .hc-delete-btn {
   width: 22px;
   height: 22px;
